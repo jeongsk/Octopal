@@ -246,7 +246,7 @@ export function ChatPanel({
     adjustTextareaHeight()
     const cursorPos = e.target.selectionStart || v.length
     const before = v.slice(0, cursorPos)
-    const match = before.match(/@(\w*)$/)
+    const match = before.match(/@([\w\p{L}\p{N}_-]*)$/u)
     if (match) {
       setMentionOpen(true)
       setMentionQuery(match[1])
@@ -274,7 +274,7 @@ export function ChatPanel({
 
   const pickMention = (name: string) => {
     const cursorPos = textareaRef.current?.selectionStart || input.length
-    const before = input.slice(0, cursorPos).replace(/@\w*$/, `@${name} `)
+    const before = input.slice(0, cursorPos).replace(/@[\w\p{L}\p{N}_-]*$/u, `@${name} `)
     const after = input.slice(cursorPos)
     setInput(before + after)
     setMentionOpen(false)

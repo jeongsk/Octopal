@@ -243,6 +243,30 @@
       "text": "폴더명 + GitHub 리모트 다 깔끔하게 바뀌었네요! ✅\n\n근데 하나 발견했어요:\n\n### ⚠️ 남은 찌꺼기\n- **`.runechat/` 폴더**가 아직 남아있어요 → `.octopal/`로 바꿔야 합니다\n\n이거 @developer 한테 처리 시키고, 이제 **Phase 2 디자인** 바로 시작할까요?\n\n@designer **Phase 2 시작해주세요!** \n1. 브랜드 컬러 **`#a41926`** 기반 다크 테마 팔레트 설계\n2. **토스페이스 문어 이모지** 참조해서 귀여운 Octopal 캐릭터 컨셉\n3. 앱 아이콘으로도 쓸 수 있는 형태\n\n토스페이스 파일은 프로젝트 어딘가에 깔려있다고 하셨어요. 먼저 찾아서 참고해주세요!\n\n@developer `.runechat/` → `.octopal/` 폴더명 변경 + 코드 내 해당 경로 참조도 한번 더 점검해주세요. 그리고 전체 빌드 테스트도 돌려서 깨진 데 없는지 확인 부탁합니다! 🐙",
       "ts": 1775456600961,
       "roomTs": 1775456600961
+    },
+    {
+      "role": "user",
+      "text": "developer just said in the group chat:\n\n\"이제 전체 그림이 잡혔습니다. 분석 결과 정리해드릴게요.\n\n---\n\n## 🐛 버그 분석 결과\n\n### 1. 한글 에이전트명 멘션 불가 — ✅ 진짜 버그\n\n**원인**: 멘션 파싱 정규식이 `\\w` (= `[a-zA-Z0-9_]`)를 사용해서 한글을 못 잡습니다.\n\n| 위치 | 패턴 | 문제 |\n|------|------|------|\n| `App.tsx:172` | `/@(\\w+)/g` | 한글 멘션 파싱 불가 |\n| `ChatPanel.tsx:249` | `/@(\\w*)$/` | `@` 뒤에 한글 입력해도 팝업 안 뜸 |\n| `ChatPanel.tsx:277` | `/@\\w*$/` | 멘션 삽입 시 한글 치환 안 됨 |\n\n**해결 방향**: 두 가지 선택지가 있어요:\n- **A안**: 에이전트명을 영문만 허용 (생성/수정 시 검증 추가)\n- **B안**: 정규식을 유니코드 지원으로 변경 (`/@([\\p{L}\\p{N}_]+)/gu` 등)\n\n> 저는 **A안 (영문만 허용)** 을 추천합니다. 파일명 호환성, CLI 인자 전달, 시스템 프롬프트 내 `@name` 참조 등 여러 곳에서 ASCII가 안전합니다. 이름 변경 시 `.octo` 파일명도 같이 바뀌는 건 이미 구현돼 있습니다 (`octo:update` 핸들러, main.ts:457-469).\n\n---\n\n### 2. 앱 비활성화 시 히든 에이전트 멈춤 — ✅ 진짜 버그\n\n**원인**: Electron의 `backgroundThrottling` 기본값이 `true`입니다.\n\n앱이 백그라운드로 가면 Chromium이 렌더러 프로세스의 타이머/이벤트 처리를 극도로 줄입니다. 에이전트 자체는 main process에서 `claude` CLI를 spawn하므로 계속 돌지만, **렌더러가 throttle되면서**:\n- IPC 응답(`octo:activity`, 결과 수신) 처리가 지연됨\n- 체이닝 로직(`invokeAgent` → 다음 에이전트 호출)이 렌더러에 있어서 멈춰 보임\n\n**해결**: BrowserWindow 생성 시 `backgroundThrottling: false` 설정 추가\n\n---\n\n### 3. 다른 스페이스 이동 시 히든 에이전트 멈춤 — ⚠️ 2번과 별개 이슈\n\n**원인**: `invokeAgent` 시작 시 `activeFolder`를 캡처하지만, 체이닝 로직에서 `octos` 배열은 **현재 활성 폴더의 에이전트**를 참조합니다 (App.tsx:418). 스페이스를 바꾸면 `octos`가 새 폴더의 에이전트로 교체되어, 이전 폴더의 체이닝이 `nextTargets`를 못 찾습니다.\n\n---\n\n## 수정할까요?\n\n바로 고칠 수 있는 것들:\n\n1. **에이전트명 영문만 허용** — 생성/수정 시 `/^[a-zA-Z0-9_-]+$/` 검증 추가\n2. **backgroundThrottling 비활성화** — 한 줄 추가\n3. **체이닝 시 octos 스냅샷** — `invokeAgent` 시작 시 octos를 캡처해두기\n\n세 개 다 바로 수정 들어갈까요?\n\n@planner 위 분석 결과 보시고 A안(영문만 허용) vs B안(유니코드 지원) 중 기획 방향 의견 주시면 반영하겠습니다.\"\n\ndeveloper mentioned you (@planner) and may want your input. Respond to their message.",
+      "ts": 1775460054881,
+      "roomTs": 1775460054881
+    },
+    {
+      "role": "assistant",
+      "text": "@developer 분석 깔끔하네요! 👏 기획 방향 바로 드릴게요.\n\n## 📋 PM 의견: A안 (영문만 허용) ✅\n\n**A안에 동의합니다.** 이유:\n\n### 1. 기술적 안정성\n- `.octo` 파일명 = 에이전트명인데, 파일시스템에서 한글 파일명은 OS별 인코딩 이슈 리스크\n- CLI 인자, 시스템 프롬프트 내 `@name` 파싱 등 한글이 끼면 엣지케이스가 계속 늘어남\n- 정규식 하나 고치면 끝이 아니라, **여기저기 유니코드 처리가 전파됨**\n\n### 2. UX 관점\n- 에이전트명은 **시스템 식별자**에 가까움 (GitHub username, Slack bot name 같은 성격)\n- 유저가 자주 타이핑하는 값이라 **영문이 오히려 빠르고 편함** (`@planner` vs `@기획자`)\n- 에이전트의 **표시 이름(display name)** 이나 **role 설명**은 한글 자유롭게 쓸 수 있으니 충분\n\n### 3. 검증 규칙 제안\n```\n/^[a-zA-Z][a-zA-Z0-9_-]{0,29}$/\n```\n- 영문 시작 필수 (숫자/특수문자 시작 방지)\n- 최대 30자 (파일명 안전 범위)\n- 허용: 영문, 숫자, `_`, `-`\n\n### 4. UX 보완\n- 기존 한글 에이전트명이 있으면 → **마이그레이션 안내** 필요 (이름 변경 유도)\n- 생성/수정 UI에서 **실시간 검증 + 안내 메시지** 표시: \"에이전트명은 영문, 숫자, _, -만 사용 가능합니다\"\n\n---\n\n## 3개 버그 모두 수정 진행해주세요! 🚀\n\n| # | 수정 내용 | 우선순위 |\n|---|----------|---------|\n| 1 | 에이전트명 영문만 허용 (검증 추가) | P1 |\n| 2 | `backgroundThrottling: false` | P1 |\n| 3 | 체이닝 시 octos 스냅샷 캡처 | P1 |\n\n세 개 다 유저 체감에 직접 영향 주는 버그라 전부 P1입니다. 바로 고고! 🐙",
+      "ts": 1775460221987,
+      "roomTs": 1775460221987
+    },
+    {
+      "role": "user",
+      "text": "developer said in the group chat:\n\n\"✅ 빌드 성공!\n\n---\n\n## 수정 완료 요약\n\n| 버그 | 수정 | 파일 |\n|------|------|------|\n| **#2 백그라운드 throttling** | `backgroundThrottling: false` 추가 | `src/main.ts:66` |\n| **#3 폴더 전환 시 체이닝 멈춤** | `invokeAgent` 시작 시 `octosSnapshot` 캡처, 이후 `peers`/`nextTargets` 계산에 스냅샷 사용 | `renderer/src/App.tsx` |\n| **#1 한글 멘션 파싱** | `parseMentions` + `onInputChange` + `pickMention` 정규식을 유니코드 지원 (`\\p{L}\\p{N}` + `u` flag)으로 변경 | `App.tsx`, `ChatPanel.tsx` |\n\n**핵심 변경:**\n- 앱이 백그라운드에 가거나 다른 스페이스로 이동해도 **진행 중인 에이전트 체인이 끊기지 않음**\n- 한글 에이전트명도 `@멘션`이 정상 작동 (팝업 + 파싱 + 삽입 모두)\n- 에이전트 ID/파일명 분리는 나중에 별도 작업으로 진행\n\n@planner 버그 3건 수정 + 빌드 확인 완료했습니다. 커밋 & 푸시할까요?\"\n\ndeveloper asked the user whether to involve you, and the user approved. Respond to their message and take over the part they asked you to handle.",
+      "ts": 1775460359015,
+      "roomTs": 1775460359015
+    },
+    {
+      "role": "assistant",
+      "text": "@developer 수정 + 빌드 확인 수고했어요! 👏\n\n근데 하나 짚고 갈게요:\n\n## ⚠️ #1번 멘션 버그 — 방향이 바뀌었어요\n\n제가 **A안 (영문만 허용)** 으로 가자고 했는데, 실제 수정은 **B안 (유니코드 정규식)** 으로 들어갔네요.\n\n### PM 판단: **일단 OK, 진행합시다** 👌\n\n이유:\n- 멘션 파싱이 한글을 지원하는 건 **당장 깨지는 걸 막는 방어적 수정**이라 괜찮아요\n- 에이전트명 영문 제한 (검증 로직)은 **별도 이슈로 분리**해서 나중에 추가하면 됩니다\n- 지금은 \"한글 이름 쓰면 멘션이 안 되는 버그\" → \"한글도 되게 만듦\"이니까 유저 입장에선 개선\n\n### 📌 후속 이슈로 등록할 것\n> **에이전트명 영문 제한 정책 적용**\n> - 생성/수정 시 `/^[a-zA-Z][a-zA-Z0-9_-]{0,29}$/` 검증\n> - 기존 한글명 에이전트 마이그레이션 안내 UX\n> - 우선순위: P2 (다음 스프린트)\n\n---\n\n## ✅ 커밋 & 푸시 해주세요!\n\n커밋 메시지 제안:\n```\nfix: background throttling, folder switch chaining, unicode mention parsing\n\n- Disable backgroundThrottling to keep agents running in background\n- Snapshot octos at invokeAgent start to survive folder switches  \n- Support unicode in mention regex for non-ASCII agent names\n```\n\n커밋하고 푸시까지 바로 고고! 🐙",
+      "ts": 1775460479120,
+      "roomTs": 1775460479120
     }
   ],
   "permissions": {

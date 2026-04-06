@@ -169,7 +169,7 @@ export function App() {
   // ── Messaging ──
 
   const parseMentions = (text: string): string[] => {
-    const re = /@(\w+)/g
+    const re = /@([\w\p{L}\p{N}_-]+)/gu
     const found: string[] = []
     let m
     while ((m = re.exec(text)) !== null) found.push(m[1])
@@ -313,6 +313,9 @@ export function App() {
   ) => {
     if (!activeFolder) return
     const folderPathAtStart = activeFolder
+    // Snapshot the current octos list so chain logic still works even if the
+    // user switches to a different folder/workspace mid-run.
+    const octosSnapshot = [...octos]
 
     const pendingId = `p-${userTs}-${target.name}-${depth}-${Date.now()}`
     const runId = `run-${userTs}-${target.name}-${depth}-${Math.random().toString(36).slice(2, 8)}`
@@ -360,7 +363,7 @@ export function App() {
       })
     }
 
-    const peers = octos
+    const peers = octosSnapshot
       .filter((r) => r.name.toLowerCase() !== target.name.toLowerCase())
       .map((r) => ({ name: r.name, role: r.role }))
 
@@ -415,7 +418,7 @@ export function App() {
     const mentioned = parseMentions(res.output)
     if (mentioned.length === 0) return
 
-    const nextTargets = octos.filter((r) => {
+    const nextTargets = octosSnapshot.filter((r) => {
       const ln = r.name.toLowerCase()
       return (
         ln !== target.name.toLowerCase() &&
