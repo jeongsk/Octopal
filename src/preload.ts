@@ -10,16 +10,16 @@ contextBridge.exposeInMainWorld('api', {
   pickFolder: (workspaceId: string) => ipcRenderer.invoke('folder:pick', workspaceId),
   removeFolder: (workspaceId: string, folderPath: string) =>
     ipcRenderer.invoke('folder:remove', { workspaceId, folderPath }),
-  listRunes: (folderPath: string) => ipcRenderer.invoke('folder:listRunes', folderPath),
+  listOctos: (folderPath: string) => ipcRenderer.invoke('folder:listOctos', folderPath),
   loadHistory: (folderPath: string) => ipcRenderer.invoke('folder:loadHistory', folderPath),
   appendUserMessage: (params: {
     folderPath: string
     message: { id: string; ts: number; text: string; attachments?: any[] }
   }) => ipcRenderer.invoke('room:appendUser', params),
-  createRune: (params: { folderPath: string; name: string; role: string; icon?: string; color?: string; permissions?: any }) =>
-    ipcRenderer.invoke('rune:create', params),
-  updateRune: (params: {
-    runePath: string
+  createOcto: (params: { folderPath: string; name: string; role: string; icon?: string; color?: string; permissions?: any }) =>
+    ipcRenderer.invoke('octo:create', params),
+  updateOcto: (params: {
+    octoPath: string
     name?: string
     role?: string
     icon?: string
@@ -31,11 +31,11 @@ contextBridge.exposeInMainWorld('api', {
       allowPaths?: string[]
       denyPaths?: string[]
     }
-  }) => ipcRenderer.invoke('rune:update', params),
-  deleteRune: (runePath: string) => ipcRenderer.invoke('rune:delete', runePath),
+  }) => ipcRenderer.invoke('octo:update', params),
+  deleteOcto: (octoPath: string) => ipcRenderer.invoke('octo:delete', octoPath),
   sendMessage: (params: {
     folderPath: string
-    runePath: string
+    octoPath: string
     prompt: string
     userTs: number
     runId: string
@@ -43,11 +43,11 @@ contextBridge.exposeInMainWorld('api', {
     collaborators?: Array<{ name: string; role: string }>
     isLeader?: boolean
     imagePaths?: string[]
-  }) => ipcRenderer.invoke('rune:sendMessage', params),
+  }) => ipcRenderer.invoke('octo:sendMessage', params),
   onActivity: (cb: (data: { runId: string; text: string }) => void) => {
     const handler = (_event: any, data: { runId: string; text: string }) => cb(data)
-    ipcRenderer.on('rune:activity', handler)
-    return () => ipcRenderer.removeListener('rune:activity', handler)
+    ipcRenderer.on('octo:activity', handler)
+    return () => ipcRenderer.removeListener('octo:activity', handler)
   },
   onActivityLog: (
     cb: (data: {
@@ -72,10 +72,10 @@ contextBridge.exposeInMainWorld('api', {
     speakerText: string
     mentionedNames: string[]
   }) => ipcRenderer.invoke('mention:classify', params),
-  onRunesChanged: (cb: (folderPath: string) => void) => {
+  onOctosChanged: (cb: (folderPath: string) => void) => {
     const handler = (_event: any, folderPath: string) => cb(folderPath)
-    ipcRenderer.on('folder:runesChanged', handler)
-    return () => ipcRenderer.removeListener('folder:runesChanged', handler)
+    ipcRenderer.on('folder:octosChanged', handler)
+    return () => ipcRenderer.removeListener('folder:octosChanged', handler)
   },
   saveFile: (params: {
     folderPath: string

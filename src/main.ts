@@ -5,21 +5,21 @@ import crypto from 'crypto'
 import os from 'os'
 import { spawn } from 'child_process'
 
-// RUNECHAT_PROD=1 forces the built renderer bundle even when running unpackaged,
+// OCTOPAL_PROD=1 forces the built renderer bundle even when running unpackaged,
 // so `npm start` after `npm run build` behaves like a production app.
-const IS_DEV = !app.isPackaged && process.env.RUNECHAT_PROD !== '1'
+const IS_DEV = !app.isPackaged && process.env.OCTOPAL_PROD !== '1'
 
 // Use a separate state file and userData dir in dev so you can run dev + prod
 // side-by-side without them stomping on each other's workspaces.
 const STATE_DIR = IS_DEV
-  ? path.join(os.homedir(), '.runechat-dev')
-  : path.join(os.homedir(), '.runechat')
+  ? path.join(os.homedir(), '.octopal-dev')
+  : path.join(os.homedir(), '.octopal')
 const STATE_FILE = path.join(STATE_DIR, 'state.json')
 if (IS_DEV) {
-  app.setPath('userData', path.join(os.homedir(), 'Library', 'Application Support', 'RuneChat Dev'))
+  app.setPath('userData', path.join(os.homedir(), 'Library', 'Application Support', 'Octopal Dev'))
 }
 
-// Folder watchers — notify renderer when .rune files change
+// Folder watchers — notify renderer when .octo files change
 const watchers = new Map<string, { watcher: fs.FSWatcher; debounce: ReturnType<typeof setTimeout> | null }>()
 let mainWindow: BrowserWindow | null = null
 
@@ -28,13 +28,13 @@ function watchFolder(folderPath: string) {
   if (!fs.existsSync(folderPath)) return
   try {
     const watcher = fs.watch(folderPath, (_eventType, filename) => {
-      if (!filename || !filename.endsWith('.rune')) return
+      if (!filename || !filename.endsWith('.octo')) return
       const entry = watchers.get(folderPath)
       if (!entry) return
       if (entry.debounce) clearTimeout(entry.debounce)
       entry.debounce = setTimeout(() => {
         if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send('folder:runesChanged', folderPath)
+          mainWindow.webContents.send('folder:octosChanged', folderPath)
         }
       }, 150)
     })
@@ -297,7 +297,7 @@ ipcMain.handle('wiki:delete', (_event, params: { workspaceId: string; name: stri
 // ── Room log (user messages) ──
 // User messages are written immediately on send to a per-folder sidecar file so
 // they survive even if no agent responds. Agent replies still live inside each
-// .rune's own history array; loadHistory merges both.
+// .octo's own history array; loadHistory merges both.
 interface RoomUserMessage {
   id: string
   ts: number
@@ -306,7 +306,7 @@ interface RoomUserMessage {
 }
 
 function getRoomLogPath(folderPath: string): string {
-  return path.join(folderPath, '.runechat', 'room-log.json')
+  return path.join(folderPath, '.octopal', 'room-log.json')
 }
 
 function readRoomLog(folderPath: string): RoomUserMessage[] {
@@ -322,7 +322,7 @@ function readRoomLog(folderPath: string): RoomUserMessage[] {
 
 function writeRoomLog(folderPath: string, messages: RoomUserMessage[]) {
   try {
-    const dir = path.join(folderPath, '.runechat')
+    const dir = path.join(folderPath, '.octopal')
     fs.mkdirSync(dir, { recursive: true })
     fs.writeFileSync(getRoomLogPath(folderPath), JSON.stringify(messages, null, 2))
   } catch {}
@@ -342,7 +342,7 @@ ipcMain.handle('room:appendUser', (_event, params: {
 })
 
 ipcMain.handle('folder:loadHistory', (_event, folderPath: string) => {
-  // Merge user messages (from room-log) with assistant messages (from .rune files)
+  // Merge user messages (from room-log) with assistant messages (from .octo files)
   try {
     if (!fs.existsSync(folderPath)) return []
     const allMessages: Array<{
@@ -365,17 +365,17 @@ ipcMain.handle('folder:loadHistory', (_event, folderPath: string) => {
       })
     }
 
-    // 2) Assistant messages from each .rune history
-    const files = fs.readdirSync(folderPath).filter((f) => f.endsWith('.rune'))
+    // 2) Assistant messages from each .octo history
+    const files = fs.readdirSync(folderPath).filter((f) => f.endsWith('.octo'))
     for (const f of files) {
       const fullPath = path.join(folderPath, f)
       try {
-        const rune = JSON.parse(fs.readFileSync(fullPath, 'utf-8'))
-        const name = rune.name || f.replace('.rune', '')
-        const history = rune.history || []
+        const octo = JSON.parse(fs.readFileSync(fullPath, 'utf-8'))
+        const name = octo.name || f.replace('.octo', '')
+        const history = octo.history || []
         for (let i = 0; i < history.length; i++) {
           const msg = history[i]
-          // Skip user messages from .rune history — room-log is the source of truth now.
+          // Skip user messages from .octo history — room-log is the source of truth now.
           if (msg.role === 'user') continue
           if (msg.roomTs) {
             allMessages.push({
@@ -397,7 +397,7 @@ ipcMain.handle('folder:loadHistory', (_event, folderPath: string) => {
   }
 })
 
-interface RunePermissions {
+interface OctoPermissions {
   fileWrite?: boolean
   bash?: boolean
   network?: boolean
@@ -405,7 +405,7 @@ interface RunePermissions {
   denyPaths?: string[]
 }
 
-function buildPermissionArgs(permissions?: RunePermissions): string[] {
+function buildPermissionArgs(permissions?: OctoPermissions): string[] {
   const args: string[] = []
   if (!permissions) return args
   const p = permissions
@@ -433,20 +433,20 @@ function buildPermissionArgs(permissions?: RunePermissions): string[] {
   return args
 }
 
-ipcMain.handle('rune:update', (_event, params: {
-  runePath: string
+ipcMain.handle('octo:update', (_event, params: {
+  octoPath: string
   name?: string
   role?: string
   icon?: string
   color?: string
-  permissions?: RunePermissions
+  permissions?: OctoPermissions
 }) => {
   try {
-    if (!fs.existsSync(params.runePath)) {
+    if (!fs.existsSync(params.octoPath)) {
       return { ok: false, error: 'File not found' }
     }
-    const content = JSON.parse(fs.readFileSync(params.runePath, 'utf-8'))
-    let finalPath = params.runePath
+    const content = JSON.parse(fs.readFileSync(params.octoPath, 'utf-8'))
+    let finalPath = params.octoPath
     if (params.name !== undefined) content.name = params.name.trim() || content.name
     if (params.role !== undefined) content.role = params.role
     if (params.icon !== undefined) content.icon = params.icon
@@ -455,23 +455,23 @@ ipcMain.handle('rune:update', (_event, params: {
 
     // Rename file if name changed
     if (params.name && params.name.trim()) {
-      const dir = path.dirname(params.runePath)
-      const newFileName = params.name.trim().endsWith('.rune')
+      const dir = path.dirname(params.octoPath)
+      const newFileName = params.name.trim().endsWith('.octo')
         ? params.name.trim()
-        : `${params.name.trim()}.rune`
+        : `${params.name.trim()}.octo`
       const newPath = path.join(dir, newFileName)
-      if (newPath !== params.runePath) {
+      if (newPath !== params.octoPath) {
         if (fs.existsSync(newPath)) {
-          return { ok: false, error: 'A rune with that name already exists' }
+          return { ok: false, error: 'An agent with that name already exists' }
         }
-        fs.writeFileSync(params.runePath, JSON.stringify(content, null, 2))
-        fs.renameSync(params.runePath, newPath)
+        fs.writeFileSync(params.octoPath, JSON.stringify(content, null, 2))
+        fs.renameSync(params.octoPath, newPath)
         finalPath = newPath
       } else {
-        fs.writeFileSync(params.runePath, JSON.stringify(content, null, 2))
+        fs.writeFileSync(params.octoPath, JSON.stringify(content, null, 2))
       }
     } else {
-      fs.writeFileSync(params.runePath, JSON.stringify(content, null, 2))
+      fs.writeFileSync(params.octoPath, JSON.stringify(content, null, 2))
     }
     return { ok: true, path: finalPath }
   } catch (e: any) {
@@ -479,55 +479,55 @@ ipcMain.handle('rune:update', (_event, params: {
   }
 })
 
-ipcMain.handle('rune:delete', (_event, runePath: string) => {
+ipcMain.handle('octo:delete', (_event, octoPath: string) => {
   try {
-    if (fs.existsSync(runePath)) fs.unlinkSync(runePath)
+    if (fs.existsSync(octoPath)) fs.unlinkSync(octoPath)
     return { ok: true }
   } catch (e: any) {
     return { ok: false, error: e.message || String(e) }
   }
 })
 
-ipcMain.handle('rune:create', (_event, params: { folderPath: string; name: string; role: string; icon?: string; color?: string; permissions?: any }) => {
+ipcMain.handle('octo:create', (_event, params: { folderPath: string; name: string; role: string; icon?: string; color?: string; permissions?: any }) => {
   const { folderPath, name, role, icon, color, permissions } = params
   const safeName = name.trim()
   if (!safeName) return { ok: false, error: 'Name is required' }
-  const fileName = safeName.endsWith('.rune') ? safeName : `${safeName}.rune`
+  const fileName = safeName.endsWith('.octo') ? safeName : `${safeName}.octo`
   const filePath = path.join(folderPath, fileName)
   if (fs.existsSync(filePath)) {
-    return { ok: false, error: 'A rune with that name already exists' }
+    return { ok: false, error: 'An agent with that name already exists' }
   }
-  const runeData: any = {
-    name: safeName.replace('.rune', ''),
+  const octoData: any = {
+    name: safeName.replace('.octo', ''),
     role: role.trim() || 'Assistant',
     icon: icon || 'bot',
     createdAt: new Date().toISOString(),
     history: [],
   }
   if (permissions) {
-    runeData.permissions = permissions
+    octoData.permissions = permissions
   }
   try {
-    fs.writeFileSync(filePath, JSON.stringify(runeData, null, 2))
+    fs.writeFileSync(filePath, JSON.stringify(octoData, null, 2))
     return { ok: true, path: filePath }
   } catch (e: any) {
     return { ok: false, error: e.message || String(e) }
   }
 })
 
-ipcMain.handle('folder:listRunes', (_event, folderPath: string) => {
+ipcMain.handle('folder:listOctos', (_event, folderPath: string) => {
   try {
     if (!fs.existsSync(folderPath)) return []
     watchFolder(folderPath)
     const files = fs.readdirSync(folderPath)
-      .filter((f) => f.endsWith('.rune'))
+      .filter((f) => f.endsWith('.octo'))
       .map((f) => {
         const fullPath = path.join(folderPath, f)
         try {
           const content = JSON.parse(fs.readFileSync(fullPath, 'utf-8'))
           return {
             path: fullPath,
-            name: content.name || f.replace('.rune', ''),
+            name: content.name || f.replace('.octo', ''),
             role: content.role || '',
             icon: content.icon || 'bot',
             permissions: content.permissions || null,
@@ -727,9 +727,9 @@ Never include agents not in the list. The leader field is required.`
   }
 })
 
-ipcMain.handle('rune:sendMessage', async (_event, params: {
+ipcMain.handle('octo:sendMessage', async (_event, params: {
   folderPath: string
-  runePath: string
+  octoPath: string
   prompt: string
   userTs: number
   runId: string
@@ -738,11 +738,11 @@ ipcMain.handle('rune:sendMessage', async (_event, params: {
   isLeader?: boolean
   imagePaths?: string[]
 }) => {
-  const { folderPath, runePath, prompt, userTs, runId, peers, collaborators, isLeader, imagePaths } = params
+  const { folderPath, octoPath, prompt, userTs, runId, peers, collaborators, isLeader, imagePaths } = params
 
   const sendActivity = (text: string) => {
     if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('rune:activity', { runId, text })
+      mainWindow.webContents.send('octo:activity', { runId, text })
     }
   }
 
@@ -758,29 +758,29 @@ ipcMain.handle('rune:sendMessage', async (_event, params: {
   }
 
   try {
-    const runeContent = JSON.parse(fs.readFileSync(runePath, 'utf-8'))
-    const agentName = runeContent.name || path.basename(runePath, '.rune')
+    const octoContent = JSON.parse(fs.readFileSync(octoPath, 'utf-8'))
+    const agentName = octoContent.name || path.basename(octoPath, '.octo')
     const systemParts: string[] = []
 
-    // ── Rune world context ──
+    // ── Octo world context ──
     // Give every agent a shared understanding of the system they live in.
     systemParts.push(
-      `You are an agent in RuneChat, a group-chat messenger for AI agents.
+      `You are an agent in Octopal, a group-chat messenger for AI agents.
 
 How your world works:
-- You are a ".rune" file: a JSON file on disk that stores your name, role, memory, and conversation history. Deleting the file deletes you; copying it clones you.
-- Your current project is the folder that contains your .rune file. Think of the folder as a workspace/project and each .rune file inside it as a coworker on that project.
-- Other .rune files in the same folder are your peers. You can talk to them in the group chat by mentioning them with @name — they will see the message and may respond.
+- You are a ".octo" file: a JSON file on disk that stores your name, role, memory, and conversation history. Deleting the file deletes you; copying it clones you.
+- Your current project is the folder that contains your .octo file. Think of the folder as a workspace/project and each .octo file inside it as a coworker on that project.
+- Other .octo files in the same folder are your peers. You can talk to them in the group chat by mentioning them with @name — they will see the message and may respond.
 - The human user talks to the whole room and can @mention any agent directly. If no one is mentioned, a dispatcher decides who should respond based on roles and recent context.
 - You persist across sessions: the user can close the app and come back days later, and your memory and history are still there.
 - You are not Claude Code itself. You are a specific agent persona running on top of Claude Code. Stay in character based on your role below.`
     )
 
-    if (runeContent.role) systemParts.push(`\nYour role: ${runeContent.role}`)
-    systemParts.push(`Your name: ${runeContent.name || 'assistant'}`)
-    if (runeContent.memory && runeContent.memory.length > 0) {
+    if (octoContent.role) systemParts.push(`\nYour role: ${octoContent.role}`)
+    systemParts.push(`Your name: ${octoContent.name || 'assistant'}`)
+    if (octoContent.memory && octoContent.memory.length > 0) {
       systemParts.push('\nSaved memory:')
-      runeContent.memory.forEach((m: string, i: number) => {
+      octoContent.memory.forEach((m: string, i: number) => {
         systemParts.push(`${i + 1}. ${m}`)
       })
     }
@@ -842,8 +842,8 @@ How to collaborate (very important):
       )
     }
     // Include recent history so the agent remembers prior turns
-    if (runeContent.history && runeContent.history.length > 0) {
-      const recent = runeContent.history.slice(-10)
+    if (octoContent.history && octoContent.history.length > 0) {
+      const recent = octoContent.history.slice(-10)
       systemParts.push('\nRecent conversation:')
       for (const msg of recent) {
         const who = msg.role === 'user' ? 'User' : 'Assistant'
@@ -852,11 +852,11 @@ How to collaborate (very important):
     }
 
     // Decide whether the agent should be able to use tools.
-    // Rule: if the .rune file has a `permissions` block with at least one
+    // Rule: if the .octo file has a `permissions` block with at least one
     // tool enabled (fileWrite, bash, or network explicitly true), we run in
     // "active" mode with --dangerously-skip-permissions + fine-grained tool
     // gates. Otherwise the agent is read-only (chat-only).
-    const perms: RunePermissions | undefined = runeContent.permissions
+    const perms: OctoPermissions | undefined = octoContent.permissions
     const hasActivePerms =
       perms &&
       (perms.fileWrite === true ||
@@ -994,11 +994,11 @@ How to collaborate (very important):
       })
     })
 
-    // Update rune history with roomTs for cross-agent merging
-    runeContent.history = runeContent.history || []
-    runeContent.history.push({ role: 'user', text: prompt, ts: userTs, roomTs: userTs })
-    runeContent.history.push({ role: 'assistant', text: output, ts: Date.now(), roomTs: Date.now() })
-    fs.writeFileSync(runePath, JSON.stringify(runeContent, null, 2))
+    // Update octo history with roomTs for cross-agent merging
+    octoContent.history = octoContent.history || []
+    octoContent.history.push({ role: 'user', text: prompt, ts: userTs, roomTs: userTs })
+    octoContent.history.push({ role: 'assistant', text: output, ts: Date.now(), roomTs: Date.now() })
+    fs.writeFileSync(octoPath, JSON.stringify(octoContent, null, 2))
 
     return { ok: true, output }
   } catch (e: any) {
@@ -1033,7 +1033,7 @@ ipcMain.handle('file:save', async (_event, params: {
       return { ok: false, error: `Unsupported file type: ${ext}` }
     }
 
-    const uploadsDir = path.join(folderPath, '.runechat', 'uploads')
+    const uploadsDir = path.join(folderPath, '.octopal', 'uploads')
     fs.mkdirSync(uploadsDir, { recursive: true })
 
     const hash = crypto.createHash('md5').update(buffer).digest('hex').slice(0, 8)
@@ -1049,7 +1049,7 @@ ipcMain.handle('file:save', async (_event, params: {
         id: `att-${timestamp}-${hash}`,
         type: isImage ? 'image' : 'text',
         filename: fileName,
-        path: `.runechat/uploads/${safeFileName}`,
+        path: `.octopal/uploads/${safeFileName}`,
         mimeType,
         size: buffer.length,
       },

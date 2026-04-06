@@ -57,7 +57,7 @@ export function LeftSidebar({
           className="workspace-switcher"
           onClick={() => setWorkspaceMenuOpen((v: boolean) => !v)}
         >
-          <span className="workspace-name">{activeWorkspace?.name || 'RuneChat'}</span>
+          <span className="workspace-name">{activeWorkspace?.name || 'Octopal'}</span>
           <span className="workspace-caret"><ChevronDown size={14} /></span>
         </button>
         {workspaceMenuOpen && (

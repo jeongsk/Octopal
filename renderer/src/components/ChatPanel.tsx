@@ -26,7 +26,7 @@ const MAX_ATTACHMENTS = 5
 interface ChatPanelProps {
   activeFolder: string | null
   activeWorkspace: Workspace | null
-  runes: RuneFile[]
+  octos: OctoFile[]
   folderMessages: Message[]
   input: string
   setInput: (v: string) => void
@@ -42,7 +42,7 @@ interface ChatPanelProps {
 export function ChatPanel({
   activeFolder,
   activeWorkspace,
-  runes,
+  octos,
   folderMessages,
   input,
   setInput,
@@ -235,10 +235,10 @@ export function ChatPanel({
   }
 
   const filteredMentions = useMemo(() => {
-    const candidates = [...runes.map((r) => r.name), 'all']
+    const candidates = [...octos.map((r) => r.name), 'all']
     const q = mentionQuery.toLowerCase()
     return candidates.filter((n) => n.toLowerCase().startsWith(q))
-  }, [runes, mentionQuery])
+  }, [octos, mentionQuery])
 
   const onInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const v = e.target.value
@@ -296,7 +296,7 @@ export function ChatPanel({
           </div>
           <div className="room-meta">
             {activeFolder
-              ? `${runes.length} agent${runes.length !== 1 ? 's' : ''}`
+              ? `${octos.length} agent${octos.length !== 1 ? 's' : ''}`
               : activeWorkspace
               ? 'Open a folder to start'
               : 'Create a workspace to start'}
@@ -317,7 +317,7 @@ export function ChatPanel({
       <div className="messages" ref={messagesContainerRef} onScroll={handleMessagesScroll}>
         {folderMessages.length === 0 && (
           <div className="empty">
-            <div className="empty-title">RuneChat</div>
+            <div className="empty-title">Octopal</div>
             <div className="empty-sub">
               Use @name to talk to an agent. @all to talk to everyone.
             </div>
@@ -334,11 +334,11 @@ export function ChatPanel({
               </div>
             )
           }
-          const agentRune = runes.find(r => r.name === m.agentName)
+          const agentOcto = octos.find(r => r.name === m.agentName)
           return (
             <div key={m.id} className={`message ${isUser ? 'user' : 'agent'}`}>
               {!isUser && (
-                <AgentAvatar name={m.agentName} icon={agentRune?.icon} size="sm" />
+                <AgentAvatar name={m.agentName} icon={agentOcto?.icon} size="sm" />
               )}
               <div className={`bubble ${m.pending ? 'pending' : ''} ${m.error ? 'error' : ''}`}>
                 {!isUser && <div className="bubble-name">{m.agentName}</div>}
@@ -433,7 +433,7 @@ export function ChatPanel({
 
       <footer className="composer">
         {mentionOpen && filteredMentions.length > 0 && (
-          <MentionPopup filteredMentions={filteredMentions} pickMention={pickMention} runes={runes} />
+          <MentionPopup filteredMentions={filteredMentions} pickMention={pickMention} octos={octos} />
         )}
 
         {/* Attachment preview */}

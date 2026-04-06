@@ -1,4 +1,4 @@
-interface RunePermissions {
+interface OctoPermissions {
   fileWrite?: boolean
   bash?: boolean
   network?: boolean
@@ -6,13 +6,13 @@ interface RunePermissions {
   denyPaths?: string[]
 }
 
-interface RuneFile {
+interface OctoFile {
   path: string
   name: string
   role: string
   icon: string
   color?: string
-  permissions?: RunePermissions | null
+  permissions?: OctoPermissions | null
 }
 
 interface Workspace {
@@ -42,27 +42,27 @@ interface Window {
     setActiveWorkspace: (id: string) => Promise<AppState>
     pickFolder: (workspaceId: string) => Promise<string | null>
     removeFolder: (workspaceId: string, folderPath: string) => Promise<AppState>
-    listRunes: (folderPath: string) => Promise<RuneFile[]>
+    listOctos: (folderPath: string) => Promise<OctoFile[]>
     loadHistory: (folderPath: string) => Promise<HistoryMessage[]>
     appendUserMessage: (params: {
       folderPath: string
       message: { id: string; ts: number; text: string; attachments?: any[] }
     }) => Promise<{ ok: true }>
-    createRune: (params: { folderPath: string; name: string; role: string; icon?: string; color?: string; permissions?: RunePermissions }) =>
+    createOcto: (params: { folderPath: string; name: string; role: string; icon?: string; color?: string; permissions?: OctoPermissions }) =>
       Promise<{ ok: true; path: string } | { ok: false; error: string }>
-    updateRune: (params: {
-      runePath: string
+    updateOcto: (params: {
+      octoPath: string
       name?: string
       role?: string
       icon?: string
       color?: string
-      permissions?: RunePermissions
+      permissions?: OctoPermissions
     }) => Promise<{ ok: true; path: string } | { ok: false; error: string }>
-    deleteRune: (runePath: string) =>
+    deleteOcto: (octoPath: string) =>
       Promise<{ ok: true } | { ok: false; error: string }>
     sendMessage: (params: {
       folderPath: string
-      runePath: string
+      octoPath: string
       prompt: string
       userTs: number
       runId: string
@@ -97,7 +97,7 @@ interface Window {
       | { ok: true; decision: 'handoff' | 'approval' | 'ignore'; reason?: string }
       | { ok: false; error: string }
     >
-    onRunesChanged: (cb: (folderPath: string) => void) => () => void
+    onOctosChanged: (cb: (folderPath: string) => void) => () => void
     saveFile: (params: {
       folderPath: string
       fileName: string

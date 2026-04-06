@@ -11,14 +11,14 @@ import { EditAgentModal } from './components/modals/EditAgentModal'
 export function App() {
   const [state, setState] = useState<AppState>({ workspaces: [], activeWorkspaceId: null })
   const [activeFolder, setActiveFolder] = useState<string | null>(null)
-  const [runes, setRunes] = useState<RuneFile[]>([])
+  const [octos, setOctos] = useState<OctoFile[]>([])
   const [messages, setMessages] = useState<Record<string, Message[]>>({})
   // Activity log of concrete actions (write/edit/bash/webfetch), keyed by folder
   const [activityLog, setActivityLog] = useState<Record<string, ActivityLogEntry[]>>({})
   const [input, setInput] = useState('')
   const [showCreateAgent, setShowCreateAgent] = useState(false)
   const [showCreateWorkspace, setShowCreateWorkspace] = useState(false)
-  const [editingAgent, setEditingAgent] = useState<RuneFile | null>(null)
+  const [editingAgent, setEditingAgent] = useState<OctoFile | null>(null)
   const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false)
   const [mentionOpen, setMentionOpen] = useState(false)
   const [mentionQuery, setMentionQuery] = useState('')
@@ -70,23 +70,23 @@ export function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.activeWorkspaceId])
 
-  // Load runes + history when folder changes
+  // Load octos + history when folder changes
   useEffect(() => {
     if (!activeFolder) {
-      setRunes([])
+      setOctos([])
       return
     }
-    window.api.listRunes(activeFolder).then(setRunes)
+    window.api.listOctos(activeFolder).then(setOctos)
     window.api.loadHistory(activeFolder).then((history) => {
       setMessages((prev) => ({ ...prev, [activeFolder]: history }))
     })
   }, [activeFolder])
 
-  // Watch for .rune file changes in the active folder
+  // Watch for .octo file changes in the active folder
   useEffect(() => {
-    const unsubscribe = window.api.onRunesChanged((changedFolder) => {
+    const unsubscribe = window.api.onOctosChanged((changedFolder) => {
       if (changedFolder === activeFolder) {
-        window.api.listRunes(changedFolder).then(setRunes)
+        window.api.listOctos(changedFolder).then(setOctos)
       }
     })
     return unsubscribe
@@ -244,21 +244,21 @@ export function App() {
     const userTs = bufferedMessages[0].ts
 
     const allMentions = bufferedMessages.flatMap((m) => parseMentions(m.text))
-    let leader: RuneFile | null = null
-    let collaborators: RuneFile[] = []
+    let leader: OctoFile | null = null
+    let collaborators: OctoFile[] = []
 
     if (allMentions.length > 0) {
       const isAll = allMentions.includes('all')
       const mentionedAgents = isAll
-        ? runes
-        : runes.filter((r) =>
+        ? octos
+        : octos.filter((r) =>
             allMentions.some((m) => r.name.toLowerCase() === m.toLowerCase())
           )
       if (mentionedAgents.length > 0) {
         leader = mentionedAgents[0]
         collaborators = mentionedAgents.slice(1)
       }
-    } else if (runes.length > 0) {
+    } else if (octos.length > 0) {
       const dispatcherMsgId = `d-${userTs}`
       setMessages((prev) => ({
         ...prev,
@@ -279,7 +279,7 @@ export function App() {
         .map((m) => ({ agentName: m.agentName, text: m.text }))
       const res = await window.api.dispatch({
         message: combinedText,
-        agents: runes.map((r) => ({ name: r.name, role: r.role })),
+        agents: octos.map((r) => ({ name: r.name, role: r.role })),
         recentHistory: recent,
       })
       setMessages((prev) => ({
@@ -287,10 +287,10 @@ export function App() {
         [folderPath]: (prev[folderPath] || []).filter((m) => m.id !== dispatcherMsgId),
       }))
       if (res.ok) {
-        const leaderMatch = runes.find((r) => r.name === res.leader)
+        const leaderMatch = octos.find((r) => r.name === res.leader)
         if (leaderMatch) {
           leader = leaderMatch
-          collaborators = runes.filter((r) => res.collaborators.includes(r.name))
+          collaborators = octos.filter((r) => res.collaborators.includes(r.name))
         }
       }
     }
@@ -303,12 +303,12 @@ export function App() {
 
   const MAX_CHAIN_DEPTH = 3
   const invokeAgent = async (
-    target: RuneFile,
+    target: OctoFile,
     prompt: string,
     userTs: number,
     depth: number,
     alreadyCalled: Set<string>,
-    collaborators: RuneFile[] = [],
+    collaborators: OctoFile[] = [],
     attachments: Attachment[] = []
   ) => {
     if (!activeFolder) return
@@ -360,7 +360,7 @@ export function App() {
       })
     }
 
-    const peers = runes
+    const peers = octos
       .filter((r) => r.name.toLowerCase() !== target.name.toLowerCase())
       .map((r) => ({ name: r.name, role: r.role }))
 
@@ -374,7 +374,7 @@ export function App() {
 
     const res = await window.api.sendMessage({
       folderPath: folderPathAtStart,
-      runePath: target.path,
+      octoPath: target.path,
       prompt,
       userTs,
       runId,
@@ -415,7 +415,7 @@ export function App() {
     const mentioned = parseMentions(res.output)
     if (mentioned.length === 0) return
 
-    const nextTargets = runes.filter((r) => {
+    const nextTargets = octos.filter((r) => {
       const ln = r.name.toLowerCase()
       return (
         ln !== target.name.toLowerCase() &&
@@ -510,7 +510,7 @@ export function App() {
       }
     })
 
-    const nextTargets = runes.filter((r) => ctx.nextTargetPaths.includes(r.path))
+    const nextTargets = octos.filter((r) => ctx.nextTargetPaths.includes(r.path))
     for (const next of nextTargets) {
       const contextPrompt = `${ctx.speakerName} said in the group chat:\n\n"${ctx.speakerOutput}"\n\n${ctx.speakerName} asked the user whether to involve you, and the user approved. Respond to their message and take over the part they asked you to handle.`
       const newCalled = new Set(ctx.alreadyCalled)
@@ -561,7 +561,7 @@ export function App() {
           <ChatPanel
             activeFolder={activeFolder}
             activeWorkspace={activeWorkspace}
-            runes={runes}
+            octos={octos}
             folderMessages={folderMessages}
             input={input}
             setInput={setInput}
@@ -579,7 +579,7 @@ export function App() {
       </div>
 
       <RightSidebar
-        runes={runes}
+        octos={octos}
         activeFolder={activeFolder}
         activityLog={folderActivity}
         setInput={setInput}
@@ -593,11 +593,11 @@ export function App() {
           onClose={() => setEditingAgent(null)}
           onSaved={() => {
             setEditingAgent(null)
-            if (activeFolder) window.api.listRunes(activeFolder).then(setRunes)
+            if (activeFolder) window.api.listOctos(activeFolder).then(setOctos)
           }}
           onDeleted={() => {
             setEditingAgent(null)
-            if (activeFolder) window.api.listRunes(activeFolder).then(setRunes)
+            if (activeFolder) window.api.listOctos(activeFolder).then(setOctos)
           }}
         />
       )}
@@ -608,7 +608,7 @@ export function App() {
           onClose={() => setShowCreateAgent(false)}
           onCreated={() => {
             setShowCreateAgent(false)
-            if (activeFolder) window.api.listRunes(activeFolder).then(setRunes)
+            if (activeFolder) window.api.listOctos(activeFolder).then(setOctos)
           }}
         />
       )}

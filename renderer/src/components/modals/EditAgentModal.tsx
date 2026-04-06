@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { EmojiPicker } from '../EmojiPicker'
 
 interface EditAgentModalProps {
-  agent: RuneFile
+  agent: OctoFile
   onClose: () => void
   onSaved: () => void
   onDeleted: () => void
@@ -22,7 +22,7 @@ export function EditAgentModal({ agent, onClose, onSaved, onDeleted }: EditAgent
 
   const save = async () => {
     setError(null)
-    const permissions: RunePermissions = {
+    const permissions: OctoPermissions = {
       fileWrite,
       bash,
       network,
@@ -35,8 +35,8 @@ export function EditAgentModal({ agent, onClose, onSaved, onDeleted }: EditAgent
         .map((s) => s.trim())
         .filter(Boolean),
     }
-    const res = await window.api.updateRune({
-      runePath: agent.path,
+    const res = await window.api.updateOcto({
+      octoPath: agent.path,
       name,
       role,
       icon,
@@ -48,8 +48,8 @@ export function EditAgentModal({ agent, onClose, onSaved, onDeleted }: EditAgent
   }
 
   const remove = async () => {
-    if (!confirm(`Delete ${agent.name}? This removes the .rune file permanently.`)) return
-    const res = await window.api.deleteRune(agent.path)
+    if (!confirm(`Delete ${agent.name}? This removes the .octo file permanently.`)) return
+    const res = await window.api.deleteOcto(agent.path)
     if (res.ok) onDeleted()
     else setError(res.error)
   }

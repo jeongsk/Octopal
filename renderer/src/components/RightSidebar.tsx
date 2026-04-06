@@ -5,11 +5,11 @@ import type { ActivityLogEntry } from '../types'
 import { AgentAvatar } from './AgentAvatar'
 
 interface RightSidebarProps {
-  runes: RuneFile[]
+  octos: OctoFile[]
   activeFolder: string | null
   activityLog: ActivityLogEntry[]
   setInput: (fn: (prev: string) => string) => void
-  setEditingAgent: (agent: RuneFile) => void
+  setEditingAgent: (agent: OctoFile) => void
   setShowCreateAgent: (v: boolean) => void
 }
 
@@ -43,7 +43,7 @@ function entryLabel(entry: ActivityLogEntry) {
 }
 
 export function RightSidebar({
-  runes,
+  octos,
   activeFolder,
   activityLog,
   setInput,
@@ -60,12 +60,12 @@ export function RightSidebar({
         <span className="section-title">Agents</span>
       </div>
       <div className="agent-list">
-        {runes.length === 0 && (
+        {octos.length === 0 && (
           <div className="empty-agents">
-            {activeFolder ? 'No .rune files in this folder' : 'Open a folder first'}
+            {activeFolder ? 'No .octo files in this folder' : 'Open a folder first'}
           </div>
         )}
-        {runes.map((r) => {
+        {octos.map((r) => {
           const hasPerms =
             r.permissions &&
             (r.permissions.fileWrite === true ||
@@ -143,7 +143,7 @@ export function RightSidebar({
                     className="activity-entry"
                     title={entry.target}
                   >
-                    <AgentAvatar name={entry.agentName} icon={runes.find(r => r.name === entry.agentName)?.icon} size="xs" />
+                    <AgentAvatar name={entry.agentName} icon={octos.find(r => r.name === entry.agentName)?.icon} size="xs" />
                     <div className="activity-body">
                       <div className="activity-line">
                         <span className="activity-agent">{entry.agentName}</span>{' '}

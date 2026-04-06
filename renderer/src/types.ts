@@ -2,7 +2,7 @@ export interface Attachment {
   id: string
   type: 'image' | 'text'
   filename: string
-  path: string           // .runechat/uploads/ 내 상대경로
+  path: string           // .octopal/uploads/ 내 상대경로
   mimeType: string
   size: number
   previewUrl?: string    // 전송 전 미리보기용 object URL

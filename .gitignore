@@ -4,5 +4,5 @@ release
 .DS_Store
 *.log
 .env
-.runechat/uploads/
-.runechat/room-log.json
+.octopal/uploads/
+.octopal/room-log.json

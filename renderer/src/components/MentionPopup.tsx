@@ -3,14 +3,14 @@ import { AgentAvatar } from './AgentAvatar'
 interface MentionPopupProps {
   filteredMentions: string[]
   pickMention: (name: string) => void
-  runes: RuneFile[]
+  octos: OctoFile[]
 }
 
-export function MentionPopup({ filteredMentions, pickMention, runes }: MentionPopupProps) {
+export function MentionPopup({ filteredMentions, pickMention, octos }: MentionPopupProps) {
   return (
     <div className="mention-popup">
       {filteredMentions.map((name) => {
-        const rune = runes.find(r => r.name === name)
+        const octo =octos.find(r => r.name === name)
         return (
           <button
             key={name}
@@ -20,7 +20,7 @@ export function MentionPopup({ filteredMentions, pickMention, runes }: MentionPo
             {name === 'all' ? (
               <div className="avatar sm" style={{ background: '#666' }}>A</div>
             ) : (
-              <AgentAvatar name={name} icon={rune?.icon} size="sm" />
+              <AgentAvatar name={name} icon={octo?.icon} size="sm" />
             )}
             <span>{name}</span>
           </button>

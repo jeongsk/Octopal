@@ -21,7 +21,7 @@ export function CreateAgentModal({ folderPath, onClose, onCreated }: CreateAgent
 
   const create = async () => {
     setError(null)
-    const permissions: RunePermissions = {
+    const permissions: OctoPermissions = {
       fileWrite,
       bash,
       network,
@@ -34,7 +34,7 @@ export function CreateAgentModal({ folderPath, onClose, onCreated }: CreateAgent
         .map((s) => s.trim())
         .filter(Boolean),
     }
-    const res = await window.api.createRune({
+    const res = await window.api.createOcto({
       folderPath,
       name,
       role,

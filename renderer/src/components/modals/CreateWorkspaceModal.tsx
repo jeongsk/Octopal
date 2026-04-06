@@ -13,7 +13,7 @@ export function CreateWorkspaceModal({ canCancel, onClose, onCreated }: CreateWo
     <div className="modal-backdrop" onClick={canCancel ? onClose : undefined}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-title">
-          {canCancel ? 'New workspace' : 'Welcome to RuneChat'}
+          {canCancel ? 'New workspace' : 'Welcome to Octopal'}
         </div>
         {!canCancel && (
           <div className="modal-hint">

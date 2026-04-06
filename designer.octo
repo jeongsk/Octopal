@@ -351,6 +351,30 @@
       "text": "빌드 성공! ✅\n\n---\n\n## 🍷 Rose Red Wine 테마 적용 완료!\n\n### 변경 요약\n\n| 요소 | Before (Terracotta) | After (Rose Red) |\n|------|---------------------|-----------------|\n| **악센트** | `#DA7756` 테라코타 ☕ | `#C94466` 로즈 레드 🍷 |\n| **호버** | `#E8896A` | `#D95A7A` |\n| **배경 톤** | 웜 어시 브라운 틴트 | **와인 틴트** (미세한 레드 언더톤) |\n| **보더** | 웜 브라운 그레이 | **와인 그레이** |\n| **텍스트** | 크림 화이트 | **로즈 화이트** |\n| **섀도우** | 브라운 틴트 | **와인 틴트** |\n\n### 새로운 에이전트 팔레트 🎨\n\n```\nRose Red   #C94466  ← 시그니처 악센트\nBlush Pink #E8B4C4  ← 소프트 로즈\nSage Teal  #5CB8A0  ← 쿨 보색\nMauve      #B48A9E  ← 뮤트 로즈\nDusk Blue  #7BA3C9  ← 쿨 악센트\nCoral      #D4836B  ← 웜 형제\nLavender   #9E8BAD  ← 소프트 퍼플\n```\n\n배경부터 텍스트, 보더, 섀도우까지 전부 **와인 언더톤**으로 통일해서 로즈 레드 악센트가 자연스럽게 녹아들어요. 앱 띄워서 확인해보세요! 🍷✨\n\n마음에 안 들면 바로 테라코타로 롤백 가능합니다!",
       "ts": 1775438344453,
       "roomTs": 1775438344453
+    },
+    {
+      "role": "user",
+      "text": "planner just said in the group chat:\n\n\"좋습니다! 마이그레이션 플랜이 위키에 정리됐어요.\n\n---\n\n## 🐙 Octopal 리브랜딩 — 전체 작업 계획\n\n사장님, 스캔 결과 **생각보다 많지만 패턴이 반복적**이라 체계적으로 하면 깔끔하게 됩니다.\n\n### 변경 규모 요약\n\n| 카테고리 | 변경 수 | 난이도 |\n|----------|--------|--------|\n| 브랜드명 (RuneChat → Octopal) | ~10곳 | 쉬움 |\n| 환경변수/경로 (.runechat → .octopal) | ~12곳 | 중간 |\n| 타입/변수명 (Rune → Octo) | ~30곳 | 반복 작업 |\n| IPC 채널명 | ~6개 | 중간 |\n| 파일 확장자 (.rune → .octo) | ~15곳 + 파일 4개 리네임 | 중간 |\n| .gitignore | 2줄 | 쉬움 |\n| **컬러 시스템** | CSS 전체 | 디자인 영역 |\n\n### 작업 순서\n\n```\nPhase 1 (코드) → Phase 2 (디자인) → Phase 3 (폴더/깃)\n   @developer      @designer         사장님\n```\n\n**Phase 3은 코드가 다 바뀐 후 마지막에** 폴더명 + GitHub 저장소명만 바꾸면 됩니다. 사장님 말씀대로 코드 먼저, 껍데기 나중!\n\n---\n\n### 팀 배정\n\n@developer 위키에 `octopal-migration.md` 작성해뒀어요. **Phase 1 전체를 맡아주세요.** 핵심 포인트:\n\n1. **브랜드명**: `RuneChat` → `Octopal` (대소문자 주의, 패키지명은 `octopal`)\n2. **환경변수**: `RUNECHAT_PROD` → `OCTOPAL_PROD`\n3. **사용자 데이터 경로**: `~/.runechat` → `~/.octopal`, `.runechat/` → `.octopal/`\n4. **타입/변수/함수명**: `Rune` prefix → `Octo` prefix (RuneFile→OctoFile, listRunes→listOctos 등)\n5. **IPC 채널**: `rune:*` → `octo:*`, `folder:runesChanged` → `folder:octosChanged`\n6. **파일 확장자**: 코드 내 `.rune` → `.octo`, 실제 `*.rune` 파일도 `*.octo`로 리네임\n7. **package.json**: name, scripts 내 환경변수\n8. **.gitignore** 업데이트\n9. **시스템 프롬프트**: \".rune file\" 설명 → \".octo file\"\n\n⚠️ `dist/` 폴더는 빌드 결과물이라 무시해도 됩니다. 위키 상세 내용 참고해주세요!\n\n@designer 님은 Phase 2 담당입니다:\n1. **브랜드 컬러 `#a41926`** 기반으로 다크 테마 팔레트 재설계해주세요\n2. **토스페이스 문어 이모지**를 참조해서 Octopal 캐릭터 컨셉 잡아주세요 — 귀여운 방향으로! 사장님이 귀여운 걸 좋아하십니다 🐙\n3. 앱 아이콘으로도 쓸 수 있는 형태면 좋겠어요\n\ndeveloper가 Phase 1 코드 작업 끝나면 그 위에 디자인 입히는 순서로 갑시다!\"\n\nplanner mentioned you (@designer) and may want your input. Respond to their message.",
+      "ts": 1775453388489,
+      "roomTs": 1775453388489
+    },
+    {
+      "role": "assistant",
+      "text": "@planner 네 확인했습니다! Phase 2 맡겠습니다 🎨\n\n위키도 읽었고, 현재 테마 파일(`globals.css`, `utils.ts`)도 파악 완료. 작업 범위 명확해요.\n\n---\n\n## 🐙 Phase 2 디자인 방향 — 초안 공유\n\n### 1. 컬러 시스템: `#a41926` 분석\n\n브랜드 컬러가 **딥 크림슨** `#a41926`인데, 솔직히 말하면 이전에 **버건디 논의**할 때랑 같은 이슈가 있어요:\n\n```\n현재 악센트  #C94466 (로즈레드)  → 명도 중상 ⭐⭐⭐⭐\n브랜드 컬러  #a41926 (딥 크림슨) → 명도 낮음 ⭐⭐\n```\n\n`#a41926`을 **그대로 UI 악센트로** 쓰면 다크 배경에서 묻힙니다. 그래서 이렇게 갈 생각이에요:\n\n| 용도 | 색상 | 설명 |\n|------|------|------|\n| **브랜드 컬러** (로고, 마케팅) | `#a41926` 그대로 | 공식 컬러 유지 |\n| **UI 악센트** (버튼, 링크, 활성표시) | `#D44058` ~ `#E04A62` | 브랜드 컬러 기반 **밝기 올린 변형** |\n| **호버** | `#E85A70` | 악센트보다 한 톤 밝게 |\n| **배경 틴트** | 크림슨 언더톤 | 현재 와인 틴트와 유사하되 더 레드 |\n\n→ 브랜드 아이덴티티는 `#a41926`으로 잡되, **실제 UI에서는 밝기 보정된 버전**을 쓰는 거죠. 이건 모든 브랜드가 하는 방식이에요 (Spotify 그린도 앱 내에서 밝기 올려서 씀).\n\n### 2. 에이전트 팔레트 구상\n\n크림슨 베이스에 어울리는 **7색 팔레트** 새로 짤게요:\n```\nCrimson    #D44058  ← 시그니처\nRose Gold  #E8B4A0  ← 웜 서브\nOcean Teal #4AADAB  ← 쿨 보색\nAmber      #D4A35C  ← 골드 웜\nSlate Blue #6B8FC2  ← 쿨 악센트\nCoral Pink #E07A6B  ← 웜 형제\nSage       #7EA07D  ← 어시 그린\n```\n\n### 3. 🐙 Octopal 캐릭터 컨셉\n\n토스페이스 문어 참조 + **귀여운 방향**으로:\n- **둥글둥글한 문어** 실루엣 (8개 다리가 아이콘에서 장식적 요소)\n- 메인 컬러 `#a41926` 크림슨 + 배 부분 밝은 핑크\n- 표정은 **> <** 눈 + 작은 입 (귀여움 극대화)\n- 앱 아이콘 용도: 심플한 문어 얼굴 실루엣으로 축소 가능한 형태\n- 크기별 인식성: 16px favicon에서도 문어임을 알 수 있게\n\n> ⚠️ 다만 캐릭터/아이콘 **실제 그래픽 제작**은 제 영역 밖이에요. 컨셉 시트 + 컬러 스펙까지는 제가 하고, 실제 일러스트는 사장님이 별도로 진행하셔야 할 것 같습니다.\n\n---\n\n### 작업 순서\n\n```\n1. @developer Phase 1 완료 대기\n2. globals.css 컬러 시스템 전면 교체\n3. utils.ts 에이전트 팔레트 교체  \n4. 빌드 & 검증\n```\n\n@developer 님 Phase 1 끝나면 알려주세요! 바로 위에 디자인 입힙니다 🍷→🐙",
+      "ts": 1775453619768,
+      "roomTs": 1775453619768
+    },
+    {
+      "role": "user",
+      "text": "planner just said in the group chat:\n\n\"위키는 잘 정리되어 있네요. 플랜이 있으니 바로 실행 들어갑니다!\n\n**Phase 1 (코드 리네이밍)** 을 @developer 에게 바로 넘기겠습니다.\n\n@developer 위키 `/Users/gilhyun/.runechat/wiki/ws-1775449909049/octopal-migration.md` 에 마이그레이션 플랜이 다 정리되어 있어요. **Phase 1 전체를 지금 바로 진행해주세요!** 핵심 요약:\n\n1. **브랜드명**: `RuneChat` → `Octopal` (package.json, HTML title, UI텍스트, 시스템 프롬프트)\n2. **환경변수/경로**: `RUNECHAT_PROD` → `OCTOPAL_PROD`, `.runechat` → `.octopal`\n3. **타입/변수명**: `Rune` prefix → `Octo` prefix (RuneFile→OctoFile, listRunes→listOctos 등)\n4. **IPC 채널**: `rune:*` → `octo:*`\n5. **파일 확장자**: `.rune` → `.octo` (코드 내 참조 + 실제 파일 리네임)\n6. **.gitignore** 업데이트\n\n`dist/` 폴더는 빌드 결과물이니 무시하고, 소스 코드만 작업해주세요. 위키 상세 내용 꼭 참고해주시고요!\n\n끝나면 말씀해주세요. 그 다음 @designer 가 Phase 2 (컬러 시스템 + 캐릭터) 들어갑니다! 🐙\"\n\nplanner mentioned you (@designer) and may want your input. Respond to their message.",
+      "ts": 1775453526471,
+      "roomTs": 1775453526471
+    },
+    {
+      "role": "assistant",
+      "text": "@planner 넵 확인! 👍\n\n@developer 님 Phase 1 끝나면 바로 Phase 2 들어갈게요. 대기 중입니다 🐙🎨",
+      "ts": 1775453624278,
+      "roomTs": 1775453624278
     }
   ],
   "permissions": {
