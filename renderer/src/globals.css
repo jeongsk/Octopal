@@ -1,40 +1,41 @@
 /* ── Tossface Emoji Font (https://github.com/toss/tossface) ── */
 @import url('https://cdn.jsdelivr.net/gh/toss/tossface/dist/tossface.css');
 
-/* ── Design Tokens: Rose Red Wine Theme ── */
+/* ── Design Tokens: Octopal Crimson Theme ── */
+/* Brand color: #a41926 — Deep Crimson */
 :root {
-  /* Background layers — subtle wine tint */
-  --bg-base: #120e0f;
-  --bg-surface: #1b1517;
-  --bg-elevated: #251e21;
-  --bg-hover: #312830;
+  /* Background layers — subtle crimson undertone */
+  --bg-base: #110c0d;
+  --bg-surface: #1a1314;
+  --bg-elevated: #241c1e;
+  --bg-hover: #302628;
 
-  /* Borders — wine-tinted */
-  --border: #3c2d33;
-  --border-hover: #4f3f47;
+  /* Borders — crimson-tinted */
+  --border: #3a2b2e;
+  --border-hover: #4d3b40;
 
   /* Text — warm rose-toned whites */
-  --text-primary: #f0e8ec;
-  --text-heading: #fff3f7;
-  --text-secondary: #b89da8;   /* muted rose */
-  --text-muted: #967d86;       /* warm muted */
-  --text-dim: #6a5560;         /* decorative only, not for readable text */
+  --text-primary: #efe7ea;
+  --text-heading: #fff1f4;
+  --text-secondary: #b69aa4;   /* muted crimson */
+  --text-muted: #947a82;       /* warm muted */
+  --text-dim: #685057;         /* decorative only, not for readable text */
 
-  /* Accent — Rose Red */
-  --accent: #C94466;
-  --accent-hover: #D95A7A;
-  --accent-glow: rgba(201, 68, 102, 0.15);
+  /* Accent — Crimson (derived from brand #a41926, brightened for dark UI) */
+  --accent: #D44058;
+  --accent-hover: #E0546C;
+  --accent-glow: rgba(212, 64, 88, 0.15);
 
-  /* Semantic — harmonized with wine base */
+  /* Semantic — harmonized with crimson base */
   --danger: #ff6b6b;
   --danger-text: #ffa0a0;
-  --danger-bg: #2d1518;
+  --danger-bg: #2d1416;
   --success: #5cb88a;
   --warning: #ffcb5c;
 
-  /* Shadows — wine-tinted for cohesion */
-  --shadow-md: 0 12px 32px rgba(16, 6, 10, 0.7);
-  --shadow-lg: 0 20px 60px rgba(16, 6, 10, 0.6);
+  /* Shadows — crimson-tinted for cohesion */
+  --shadow-md: 0 12px 32px rgba(14, 6, 8, 0.7);
+  --shadow-lg: 0 20px 60px rgba(14, 6, 8, 0.6);
 
   /* Radii */
   --radius-sm: 4px;
@@ -82,9 +83,9 @@ button {
   outline-offset: 2px;
 }
 
-/* ── Claude Terracotta: Signature glow effects ── */
+/* ── Octopal Crimson: Signature glow effects ── */
 .sidebar-nav-item.active {
-  box-shadow: inset 0 0 20px rgba(218, 119, 86, 0.08);
+  box-shadow: inset 0 0 20px rgba(212, 64, 88, 0.08);
 }
 
 /* ── Layout ── */

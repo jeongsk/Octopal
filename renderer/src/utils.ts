@@ -1,11 +1,11 @@
 export const AGENT_COLORS = [
-  '#C94466',  // Rose Red   (signature — wine accent)
-  '#E8B4C4',  // Blush Pink (secondary — soft rose)
-  '#5CB8A0',  // Sage Teal  (cool complement)
-  '#B48A9E',  // Mauve      (warm muted rose)
-  '#7BA3C9',  // Dusk Blue  (cool accent)
-  '#D4836B',  // Coral      (warm sibling)
-  '#9E8BAD',  // Lavender   (soft purple)
+  '#D44058',  // Crimson     (signature — brand accent)
+  '#E8A8B4',  // Rose Gold   (soft warm secondary)
+  '#4AADAB',  // Ocean Teal  (cool complement)
+  '#C49080',  // Amber Clay  (warm earth tone)
+  '#6B8FC2',  // Slate Blue  (cool accent)
+  '#D4836B',  // Coral       (warm sibling)
+  '#8EA07D',  // Sage Green  (earthy cool)
 ]
 
 export function colorForName(name: string) {
