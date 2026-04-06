@@ -303,6 +303,18 @@
       "text": "빌드 성공 ✅\n\n## ✅ 토스페이스 이모지 전역 적용 완료\n\n### 변경 내용\n\n| 파일 | 변경 |\n|------|------|\n| **`globals.css`** | 글로벌 `font-family`에 `'Tossface'` 최우선 추가 |\n\n### 변경 전 → 후\n\n```css\n/* 이전 */\nfont-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;\n\n/* 이후 */\nfont-family: 'Tossface', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;\n```\n\n### 동작 원리\n\nTossface 폰트는 **이모지 글리프만** 포함하고 있어서:\n- 🎨 👍 🔮 등 이모지 → **Tossface로 렌더링** (토스 스타일)\n- 일반 텍스트 → 기존 시스템 폰트로 **자동 폴백**\n\n글로벌 레벨에서 적용했기 때문에 채팅 메시지, 사이드바, 위키 등 **앱 전체**에서 토스페이스 이모지가 표시됩니다. 기존에 아바타/이모지피커에만 개별 적용하던 것과 달리 한 줄로 통일된 거예요 👍",
       "ts": 1775436560827,
       "roomTs": 1775436560827
+    },
+    {
+      "role": "user",
+      "text": "ㅇㅋ 깃에 푸시해줘",
+      "ts": 1775439145629,
+      "roomTs": 1775439145629
+    },
+    {
+      "role": "assistant",
+      "text": "✅ **푸시 완료!**\n\n```\n9d9eb2d  feat: UI 개선 — 위키 사이드바 이동, Rune Shift 그라디언트 테마, 토스페이스 이모지\n```\n\n12개 파일, +478 / -110 변경사항이 `origin/main`에 올라갔어요 🚀",
+      "ts": 1775439177813,
+      "roomTs": 1775439177813
     }
   ],
   "permissions": {
