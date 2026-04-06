@@ -581,14 +581,16 @@ export function App() {
         ) : null}
       </div>
 
-      <RightSidebar
-        octos={octos}
-        activeFolder={activeFolder}
-        activityLog={folderActivity}
-        setInput={setInput}
-        setEditingAgent={setEditingAgent}
-        setShowCreateAgent={setShowCreateAgent}
-      />
+      {centerTab === 'chat' && (
+        <RightSidebar
+          octos={octos}
+          activeFolder={activeFolder}
+          activityLog={folderActivity}
+          setInput={setInput}
+          setEditingAgent={setEditingAgent}
+          setShowCreateAgent={setShowCreateAgent}
+        />
+      )}
 
       {editingAgent && activeFolder && (
         <EditAgentModal

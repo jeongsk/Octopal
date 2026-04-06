@@ -10,7 +10,7 @@ interface LeftSidebarProps {
   setCenterTab: (tab: 'chat' | 'wiki') => void
   workspaceMenuOpen: boolean
   setWorkspaceMenuOpen: (v: boolean | ((prev: boolean) => boolean)) => void
-  setActiveFolder: (f: string) => void
+  setActiveFolder: (f: string | null) => void
   switchWorkspace: (id: string) => void
   removeWorkspace: (id: string) => void
   removeFolder: (p: string) => void
@@ -99,7 +99,18 @@ export function LeftSidebar({
       <div className="sidebar-nav">
         <button
           className={`sidebar-nav-item ${centerTab === 'wiki' ? 'active' : ''}`}
-          onClick={() => setCenterTab(centerTab === 'wiki' ? 'chat' : 'wiki')}
+          onClick={() => {
+            if (centerTab === 'wiki') {
+              // 채팅으로 돌아갈 때 폴더가 없으면 첫 번째 폴더 선택
+              if (!activeFolder && folders.length > 0) {
+                setActiveFolder(folders[0])
+              }
+              setCenterTab('chat')
+            } else {
+              setActiveFolder(null)
+              setCenterTab('wiki')
+            }
+          }}
           disabled={!state.activeWorkspaceId}
         >
           <BookOpen size={16} />
