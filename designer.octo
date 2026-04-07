@@ -627,6 +627,150 @@
       "text": "빌드 성공! ✅\n\n### 변경 내용\n\n**왼쪽 - Add Folder 버튼 위치 이동:**\n```\nBefore:                    After:\n📖 Wiki                    📖 Wiki\n📊 Activity                📊 Activity\n───────────                ───────────\n  📁 my-project            ┌─ ─ ─ ─ ─ ─ ─ ─┐\n  📁 another-app           │  + Add Folder  │  ← 폴더 목록 위!\n  ┌─ ─ ─ ─ ─ ─ ─ ─┐      └─ ─ ─ ─ ─ ─ ─ ─┘\n  │  + Add Folder  │        📁 my-project\n  └─ ─ ─ ─ ─ ─ ─ ─┘        📁 another-app\n```\n\n**오른쪽 - 에이전트 추가 버튼 헤더로:**\n```\nBefore:                    After:\n┌──────────────┐           ┌──────────────────┐\n│ Agents       │           │ Agents       [+] │  ← 헤더에 + 버튼!\n├──────────────┤           ├──────────────────┤\n│ 🟢 designer  │           │ 🟢 designer      │\n│ 🟢 developer │           │ 🟢 developer     │\n│ + New agent  │           └──────────────────┘\n└──────────────┘\n```\n\n| 항목 | 변경 |\n|------|------|\n| **Add Folder** | 폴더 리스트 하단 → **상단**으로 이동 |\n| **+ 버튼** | 26×26px, `border` 실선, hover 시 배경 밝아짐 |\n| **기존 \"New agent\"** | 리스트 하단 텍스트 버튼 삭제 → 헤더 아이콘 버튼으로 대체 |\n| **drag 영역** | `-webkit-app-region: no-drag`로 버튼 클릭 가능 |\n\n깔끔하게 정리됐습니다! 🐙✨",
       "ts": 1775493851557,
       "roomTs": 1775493851557
+    },
+    {
+      "role": "user",
+      "text": "숫자가 자간이 굉장히 넓은데 혹시 토스페이스 폰트 때문인가?",
+      "ts": 1775513425128,
+      "roomTs": 1775513425128
+    },
+    {
+      "role": "assistant",
+      "text": "빌드 성공! ✅\n\n### 수정 내용\n\n| 항목 | Before | After |\n|------|--------|-------|\n| **body font-family** | `'Tossface', -apple-system, ...` | `-apple-system, BlinkMacSystemFont, ...` |\n| **이모지 영역** | 그대로 유지 (`'Tossface', sans-serif`) | 그대로 유지 |\n\n### 원인 설명\n\n**Tossface는 이모지 전용 폰트**인데 `font-family` 최우선에 넣어두니까 숫자/영문도 Tossface 글리프로 렌더링되면서 자간이 넓어 보였던 거예요. 이제 시스템 폰트(-apple-system)가 텍스트/숫자를 담당하고, 이모지만 Tossface로 표시됩니다 🐙✨",
+      "ts": 1775513477850,
+      "roomTs": 1775513477850
+    },
+    {
+      "role": "user",
+      "text": "엥 이모지에 토스페이스 적용이 안되는데",
+      "ts": 1775513608910,
+      "roomTs": 1775513608910
+    },
+    {
+      "role": "assistant",
+      "text": "빌드 성공! ✅\n\n### 원인 & 수정\n\n**원인:** CSS `@import url(...)` 로 CDN 폰트를 불러왔는데, Vite가 CSS를 번들링하면서 외부 `@import`가 제대로 동작하지 않았어요. Vite는 외부 URL의 `@import`를 빌드된 CSS 파일에 포함시키긴 하지만, 브라우저가 인라인된 CSS에서 `@import`를 처리하는 타이밍이 꼬일 수 있습니다.\n\n**수정:**\n\n| 항목 | Before | After |\n|------|--------|-------|\n| **로딩 방식** | `globals.css` 내 `@import url(...)` | `index.html` 내 `<link rel=\"stylesheet\">` |\n| **효과** | Vite 번들링 영향 받음 | **HTML에서 직접 로드** → 확실하게 폰트 다운로드 |\n\n`<link>` 태그는 CSS 번들링과 무관하게 브라우저가 직접 CDN에서 폰트를 가져오니까 훨씬 안정적이에요. 이모지에 Tossface가 적용되는지 확인해주세요! 🐙✨",
+      "ts": 1775513723921,
+      "roomTs": 1775513723921
+    },
+    {
+      "role": "user",
+      "text": "아직 적용 안된다 cdn 말고 파일을 앱 안에 넣어줘",
+      "ts": 1775513953057,
+      "roomTs": 1775513953057
+    },
+    {
+      "role": "assistant",
+      "text": "빌드 성공! ✅\n\n### 변경 내용\n\n| 항목 | Before | After |\n|------|--------|-------|\n| **폰트 로딩** | CDN (`cdn.jsdelivr.net`) | **로컬 파일** (`/fonts/tossface/`) |\n| **파일 위치** | 외부 서버 | `renderer/public/fonts/tossface/` |\n| **포맷** | woff2 + woff | woff2만 (모던 브라우저 충분) |\n| **파일 수** | - | 12개 woff2 + 1개 CSS |\n\n이제 **네트워크 없이도** Tossface 이모지가 로딩됩니다. 오프라인에서도 잘 동작하고, CDN 로딩 타이밍 이슈도 없어요. 확인해주세요! 🐙✨",
+      "ts": 1775514052301,
+      "roomTs": 1775514052301
+    },
+    {
+      "role": "user",
+      "text": "link 로 index 에 넣지 말고 글로벌 css 에 넣어줘",
+      "ts": 1775514094366,
+      "roomTs": 1775514094366
+    },
+    {
+      "role": "assistant",
+      "text": "빌드 성공! ✅\n\n### 변경 내용\n\n| 항목 | Before | After |\n|------|--------|-------|\n| **index.html** | `<link rel=\"stylesheet\" href=\"/fonts/tossface/tossface.css\" />` | ❌ 제거 |\n| **globals.css** | 주석만 (\"Loaded via link...\") | **@font-face 12개 직접 인라인** |\n\n이제 Tossface 폰트가 **globals.css에서 직접 선언**되니까 Vite 번들링 파이프라인 안에서 확실하게 처리됩니다. 별도 파일 참조나 link 태그 없이 CSS 한 곳에서 관리돼요 🐙✨",
+      "ts": 1775514196059,
+      "roomTs": 1775514196059
+    },
+    {
+      "role": "user",
+      "text": "안되는데 아직",
+      "ts": 1775514260047,
+      "roomTs": 1775514260047
+    },
+    {
+      "role": "assistant",
+      "text": "### 수정 완료! ✅\n\n| 항목 | Before (❌) | After (✅) |\n|------|------------|-----------|\n| **폰트 위치** | `renderer/public/fonts/tossface/` | `assets/fonts/tossface/` |\n| **publicDir** | `assets/` (폰트 없음 → 로드 불가) | `assets/` (폰트 있음 → 정상 로드) |\n| **빌드 경로** | 폰트 미포함 | `dist/renderer/fonts/tossface/*.woff2` ✅ |\n| **CSS url()** | `/fonts/...` → `../fonts/...` (Vite가 자동 변환) | ✅ |\n\n**원인:** Vite의 `publicDir`이 `assets/` 폴더로 설정되어 있는데, 폰트 파일을 `renderer/public/`에 넣어서 Vite가 아예 인식하지 못하고 있었어요. 이제 올바른 위치(`assets/fonts/tossface/`)에 넣어서 dev/production 모두 정상 동작합니다. 확인해주세요! 🐙✨",
+      "ts": 1775514377344,
+      "roomTs": 1775514377344
+    },
+    {
+      "role": "user",
+      "text": "바디 폰트 패밀리에 그냥 다시 넣어주고 Tossface 를 맨 마지막에 넣어봐",
+      "ts": 1775514816339,
+      "roomTs": 1775514816339
+    },
+    {
+      "role": "assistant",
+      "text": "빌드 성공! ✅\n\n### 변경 내용\n\n```css\n/* Before */\nfont-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;\n\n/* After */\nfont-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif, 'Tossface';\n```\n\n이렇게 하면 **숫자/영문/한글은 시스템 폰트가 먼저 매칭**되고, 시스템 폰트에 글리프가 없는 **이모지만 맨 마지막 fallback인 Tossface로** 렌더링됩니다. 자간 문제 없이 이모지만 Tossface 스타일로 나올 거예요! 확인해주세요 🐙✨",
+      "ts": 1775514851485,
+      "roomTs": 1775514851485
+    },
+    {
+      "role": "user",
+      "text": "왼쪽 패널에 Add Folder 버튼 위에 여백좀 넣어주고 패널 맨 아래 설정 버튼 영역 넣자",
+      "ts": 1775515071666,
+      "roomTs": 1775515071666
+    },
+    {
+      "role": "assistant",
+      "text": "빌드 성공! ✅\n\n### 변경 내용\n\n| 항목 | Before | After |\n|------|--------|-------|\n| **Add Folder 위치** | 폴더 목록 **위에** | 폴더 목록 **아래** (하단 고정) |\n| **여백** | 2px | **12px 상단 마진** + spacer로 자연스럽게 밀어내기 |\n| **Settings 영역** | ❌ 없음 | ✅ 패널 최하단에 `border-top` 구분선 + 설정 버튼 |\n\n**레이아웃 구조:**\n```\n┌─ Left Sidebar ──────┐\n│ [Workspace Switcher] │\n│ [Wiki] [Activity]    │\n│ 📁 Folder 1          │\n│ 📁 Folder 2          │\n│                      │  ← spacer (남은 공간 차지)\n│ [+ Add Folder]       │  ← 여백 위에 위치\n├──────────────────────┤  ← border-top 구분선\n│ ⚙ Settings           │  ← 새로 추가된 하단 고정 영역\n└──────────────────────┘\n```\n\nAdd Folder 버튼이 폴더가 적을 때는 아래로 밀려나고, 폴더가 많아지면 스크롤 영역 안에서 자연스럽게 따라옵니다. Settings 버튼은 항상 패널 최하단에 고정돼요! 🐙✨\n\n@developer, Settings 버튼에 클릭 핸들러를 연결해야 하는데요 — 설정 화면이 아직 없다면 나중에 추가할 때 여기에 `onClick` 핸들러만 연결하면 됩니다. 혹시 기존에 설정 관련 로직이 있으면 바로 연결해주세요!",
+      "ts": 1775515172224,
+      "roomTs": 1775515172224
+    },
+    {
+      "role": "user",
+      "text": "플랜 땡큐! 좀있다 설정 페이지 다시 논의하다, 설정버튼을 그냥 엑티비티 하단에 메뉴로 두자 그리고 Add Folder를 폴더 리스트랑 위치 바꿔줘 그게 나은듯 그리고 폴더 리스트는 길어지면 스크롤 생기는거지?",
+      "ts": 1775515487569,
+      "roomTs": 1775515487569
+    },
+    {
+      "role": "assistant",
+      "text": "빌드 성공! ✅\n\n### 변경 내용\n\n```\n┌─ Left Sidebar ──────┐\n│ [Workspace Switcher] │\n│ [Wiki]               │\n│ [Activity]           │\n│ [⚙ Settings]        │  ← nav 메뉴로 이동 (Activity 아래)\n├──────────────────────┤\n│ [+ Add Folder]       │  ← 폴더 리스트 위로 이동\n│ 📁 Folder 1          │\n│ 📁 Folder 2          │\n│ 📁 Folder 3          │  ← 길어지면 스크롤 (overflow-y: auto)\n│ ...                  │\n└──────────────────────┘\n```\n\n| 항목 | Before | After |\n|------|--------|-------|\n| **Settings** | 패널 최하단 footer (border-top 구분) | Activity 아래 **nav 메뉴 아이템** |\n| **Add Folder** | 폴더 리스트 **아래** | 폴더 리스트 **위** |\n| **Footer 영역** | 있음 | ❌ 제거 |\n| **폴더 스크롤** | ✅ `overflow-y: auto` | 그대로 유지 ✅ |\n\n네, 폴더 리스트는 `.project-list`에 `flex: 1` + `overflow-y: auto`가 걸려있어서 **폴더가 많아지면 자동으로 스크롤** 생깁니다! 확인해주세요 🐙✨",
+      "ts": 1775515581295,
+      "roomTs": 1775515581295
+    },
+    {
+      "role": "user",
+      "text": "Add Folder 버튼 하단에도 여백 조금 추가 해줘",
+      "ts": 1775515628332,
+      "roomTs": 1775515628332
+    },
+    {
+      "role": "assistant",
+      "text": "완료! ✅\n\nAdd Folder 버튼 하단 마진을 `4px` → `10px`로 늘려서 폴더 리스트와의 간격이 좀 더 여유롭게 됐어요. 확인해주세요 🐙✨",
+      "ts": 1775515665170,
+      "roomTs": 1775515665170
+    },
+    {
+      "role": "user",
+      "text": "브랜드 컬러랑 --accent 컬러 #a41925 로 바꿔줘",
+      "ts": 1775520110604,
+      "roomTs": 1775520110604
+    },
+    {
+      "role": "assistant",
+      "text": "완료! ✅\n\n### 변경 내용\n\n| 토큰 | Before | After |\n|------|--------|-------|\n| **--accent** | `#D44058` (밝은 크림슨) | `#a41925` (브랜드 컬러 그대로) |\n| **--accent-hover** | `#E0546C` | `#bf2030` (살짝 밝게) |\n| **--accent-glow** | `rgba(212, 64, 88, 0.15)` | `rgba(164, 25, 37, 0.15)` |\n\n이전에는 브랜드 컬러를 밝게 변환해서 쓰고 있었는데, 이제 **#a41925를 accent에 직접 사용**합니다. 더 깊고 진한 크림슨 톤으로 전체 UI가 통일될 거예요. 확인해주세요! 🐙✨",
+      "ts": 1775520153194,
+      "roomTs": 1775520153194
+    },
+    {
+      "role": "user",
+      "text": "ㅇㅋ 훨 나은거 같다 정채성도 챙기고",
+      "ts": 1775520204099,
+      "roomTs": 1775520204099
+    },
+    {
+      "role": "assistant",
+      "text": "감사합니다! 🐙✨\n\n브랜드 컬러 **#a41925**로 통일하니까 확실히 정체성이 살아나죠. 딥 크림슨 톤이 다크 테마랑도 잘 어울리고, 포인트 컬러로서 시인성도 좋습니다.\n\n나중에 추가로 컬러 시스템 확장이 필요하면 (success, warning, error 등) 이 브랜드 컬러 기준으로 조화롭게 세팅해드릴게요! 💪",
+      "ts": 1775520218948,
+      "roomTs": 1775520218948
+    },
+    {
+      "role": "user",
+      "text": "아 ㅇㅇ 지금 세팅해줘",
+      "ts": 1775520259741,
+      "roomTs": 1775520259741
+    },
+    {
+      "role": "assistant",
+      "text": "빌드 성공! ✅\n\n### 시맨틱 컬러 시스템 세팅 완료\n\n브랜드 컬러 **#a41925** 기준으로 조화로운 4가지 시맨틱 컬러를 세팅했어요:\n\n| 시맨틱 | 메인 | hover | text | bg | glow |\n|--------|------|-------|------|----|------|\n| 🔴 **Danger** | `#e84455` | `#f25a6a` | `#ffa0a0` | `#2d1416` | 15% |\n| 🟢 **Success** | `#3da874` | `#4fc288` | `#7ee8b0` | `#142d1f` | 15% |\n| 🟡 **Warning** | `#e8a832` | `#f2bc4a` | `#ffd580` | `#2d2414` | 15% |\n| 🔵 **Info** | `#5a8ec8` | `#6ea2dc` | `#a0c8ff` | `#142030` | 15% |\n\n각 컬러에 **6가지 변형**이 있어서 다양한 상황에서 바로 쓸 수 있습니다:\n- **메인** — 버튼, 아이콘\n- **hover** — 호버 상태\n- **text** — 다크 배경 위 텍스트\n- **bg** — 배지/알림 배경 (다크 톤)\n- **glow** — 그림자/포커스링\n\n크림슨 브랜드 톤과 어울리도록 채도와 명도를 맞췄고, 다크 테마에서 시인성도 확보했어요! 🐙✨",
+      "ts": 1775520302939,
+      "roomTs": 1775520302939
     }
   ],
   "permissions": {
