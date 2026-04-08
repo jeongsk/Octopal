@@ -538,7 +538,10 @@ export function App() {
         leader = mentionedAgents[0]
         collaborators = mentionedAgents.slice(1)
       }
-    } else {
+    }
+
+    // If no leader yet (no mentions, or mentions didn't match any agent), use dispatcher
+    if (!leader) {
       const visibleAgents = octos.filter((r) => !r.hidden)
       if (visibleAgents.length === 1) {
         // Only one visible agent — skip dispatcher, route directly
