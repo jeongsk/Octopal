@@ -283,13 +283,25 @@ export function App() {
       setHasMoreMessages((prev) => ({ ...prev, [folder]: hasMore }))
       setMessages((prev) => {
         const existing = prev[folder] || []
-        const pendingMessages = existing.filter((m) => m.pending)
-        if (pendingMessages.length === 0) {
+        // Preserve pending messages and unresolved permission requests (in-memory only)
+        const preserveMessages = existing.filter(
+          (m) => m.pending || (m.permissionRequest && m.permissionRequest.granted === undefined)
+        )
+        if (preserveMessages.length === 0) {
           return { ...prev, [folder]: history }
         }
         const historyIds = new Set(history.map((m) => m.id))
-        const missingPending = pendingMessages.filter((m) => !historyIds.has(m.id))
-        return { ...prev, [folder]: [...history, ...missingPending] }
+        const missingPreserved = preserveMessages.filter((m) => !historyIds.has(m.id))
+        // For messages already in history, merge back permissionRequest from in-memory state
+        const permMap = new Map(
+          preserveMessages
+            .filter((m) => m.permissionRequest)
+            .map((m) => [m.id, m.permissionRequest])
+        )
+        const mergedHistory = history.map((m) =>
+          permMap.has(m.id) ? { ...m, permissionRequest: permMap.get(m.id) } : m
+        )
+        return { ...prev, [folder]: [...mergedHistory, ...missingPreserved] }
       })
     }
 
