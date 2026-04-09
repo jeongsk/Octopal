@@ -5,9 +5,9 @@
 </p>
 
 <p align="center">
-  <strong>Agentic workplace messenger<br />for Claude Code</strong><br />
-  Collaborate with your Claude Code agents more efficiently.<br />
-  A group chat interface where multiple agents work together in real time.
+  <strong>My PC is my Company.</strong><br />
+  An agentic workplace messenger for Claude Code.<br />
+  No servers, no accounts — just your PC and a team of AI agents.
 </p>
 
 <p align="center">
@@ -31,9 +31,9 @@
 
 ## What is Octopal?
 
-Octopal is a multi-agent chat app that runs on top of Claude Code. It's built for power users who work on multiple projects simultaneously.
+Octopal is a multi-agent workplace messenger that runs on top of Claude Code. It's built for power users who work on multiple projects simultaneously.
 
-Create a new workspace, import your project folders, easily add agents, and enjoy group chatting with your agent team.
+Create a workspace, import your project folders, add agents, and start group chatting with your AI team — all in seconds.
 
 All agent data is stored as `.octo` files in your project folder — everything lives inside the file. As long as you have the `.octo` file, you can pick up the conversation from anywhere.
 
@@ -41,10 +41,34 @@ All agent data is stored as `.octo` files in your project folder — everything 
 
 > **My PC is my Company.**
 
-Octopal's uniquely simple structure instantly turns your PC into your own company.
-Folders are teams, files are agents, and folders come together to form a workspace.
+**One simple metaphor, zero infrastructure.**
+
+Octopal's uniquely simple structure turns familiar concepts into a powerful AI workplace. No servers, no accounts — everything lives on your machine.
+
+| Concept | Becomes | Description |
+|---------|---------|-------------|
+| 📁 Folder | **Team** | Each folder becomes an independent team with its own agents and context. |
+| 📄 .octo File | **Agent** | A single JSON file defines an agent — its role, memory, and personality. |
+| 🏢 Workspace | **Company** | Group your folders into a workspace and you have your own AI company. |
 
 No complex setup, no cloud — just your computer and your AI company.
+
+## Highlights
+
+| | Feature | Description |
+|---|---------|-------------|
+| 🐙 | **Octo Agents** | Define agents as simple `.octo` files. Each file is an independent agent with its own role, personality, and capabilities. |
+| 💬 | **Group Chat** | Agents talk to each other and to you in a natural group chat. @mention to direct, or let the orchestrator route automatically. |
+| 🧠 | **Hidden Orchestrator** | A smart orchestrator reads the context and calls the right agent at the right time. You direct, agents collaborate. |
+| 📁 | **Your Folders, Your Teams** | Each folder is a team, each workspace is a company. Organize agent teams the way you already organize files. |
+| 🔗 | **Agent-to-Agent** | Agents can @mention each other, triggering chain reactions of collaboration without your intervention. |
+| 🔒 | **Local-first, Privacy-first** | Everything runs on your machine. No cloud servers, no data collection — your agents, your files, your control. |
+
+## How It Works
+
+1. **Open Octopal App** — Launch the app and open a workspace. That's your company — ready in seconds.
+2. **Add a Folder** — Add a folder and drop in `.octo` files. Each folder is a team, each file is an agent — alive and ready to work.
+3. **Create Agents & Chat** — Give each agent a role and start chatting. @mention who you need, or let the orchestrator route the conversation.
 
 ## Features
 
