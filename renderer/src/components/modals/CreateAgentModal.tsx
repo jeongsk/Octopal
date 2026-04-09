@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useTranslation, Trans } from 'react-i18next'
 import { EmojiPicker } from '../EmojiPicker'
 import { AlertTriangle } from 'lucide-react'
+import { McpValidationModal } from './McpValidationModal'
 
 interface CreateAgentModalProps {
   folderPath: string
@@ -24,6 +25,8 @@ export function CreateAgentModal({ folderPath, onClose, onCreated }: CreateAgent
   const [mcpError, setMcpError] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [limitReached, setLimitReached] = useState<number | null>(null)
+  const [showMcpValidation, setShowMcpValidation] = useState(false)
+  const [pendingMcpServers, setPendingMcpServers] = useState<McpServersConfig | null>(null)
 
   const create = async () => {
     setError(null)
@@ -64,13 +67,30 @@ export function CreateAgentModal({ folderPath, onClose, onCreated }: CreateAgent
       mcpServers,
     })
     if (res.ok) {
-      onCreated()
+      // If MCP servers were configured, run validation before closing
+      if (mcpServers && Object.keys(mcpServers).length > 0) {
+        setPendingMcpServers(mcpServers)
+        setShowMcpValidation(true)
+      } else {
+        onCreated()
+      }
     } else if (res.error.startsWith('AGENT_LIMIT:')) {
       const max = parseInt(res.error.split(':')[1], 10)
       setLimitReached(max)
     } else {
       setError(res.error)
     }
+  }
+
+  // MCP Validation popup
+  if (showMcpValidation && pendingMcpServers) {
+    return (
+      <McpValidationModal
+        mcpServers={pendingMcpServers}
+        onClose={() => { setShowMcpValidation(false); onCreated() }}
+        onDone={() => { setShowMcpValidation(false); onCreated() }}
+      />
+    )
   }
 
   // Agent limit popup

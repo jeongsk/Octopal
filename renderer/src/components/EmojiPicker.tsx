@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { AgentAvatar } from './AgentAvatar'
 import { AGENT_COLORS, colorForName } from '../utils'
 
@@ -10,30 +11,30 @@ interface EmojiPickerProps {
   onColorChange?: (color: string) => void
 }
 
-const EMOJI_SECTIONS: { title: string; emojis: string[] }[] = [
+const EMOJI_SECTIONS: { titleKey: string; emojis: string[] }[] = [
   {
-    title: '추천',
+    titleKey: 'emojiPicker.recommended',
     emojis: [
       '🤖', '🎨', '📋', '🔧', '🧪', '💬', '📝', '🚀',
       '🎯', '⚡', '🧠', '🔍', '🛠️', '📊', '🎭', '🌟',
     ],
   },
   {
-    title: '사람',
+    titleKey: 'emojiPicker.people',
     emojis: [
       '👨‍💻', '👩‍💻', '🧑‍🎨', '👷', '🧑‍🔬', '🧑‍💼', '🧑‍🏫', '🤓',
       '🦸', '🧙', '🧝', '🥷', '👾', '😎', '🤠', '🧑‍🚀',
     ],
   },
   {
-    title: '동물',
+    titleKey: 'emojiPicker.animals',
     emojis: [
       '🐱', '🐶', '🦊', '🐼', '🐸', '🦉', '🐝', '🦋',
       '🐙', '🦄', '🐳', '🐧', '🦁', '🐺', '🦈', '🐲',
     ],
   },
   {
-    title: '기타',
+    titleKey: 'emojiPicker.other',
     emojis: [
       '🔥', '⭐', '💎', '🌈', '🌙', '☀️', '🌊', '♻️',
       '📦', '🔐', '🌍', '🍀', '💡', '🎵', '🏆', '🎮',
@@ -42,6 +43,7 @@ const EMOJI_SECTIONS: { title: string; emojis: string[] }[] = [
 ]
 
 export function EmojiPicker({ value, onChange, name, color, onColorChange }: EmojiPickerProps) {
+  const { t } = useTranslation()
   const [isOpen, setIsOpen] = useState(false)
   const [activeTab, setActiveTab] = useState(0)
   const wrapperRef = useRef<HTMLDivElement>(null)
@@ -87,12 +89,12 @@ export function EmojiPicker({ value, onChange, name, color, onColorChange }: Emo
             <div className="emoji-picker-tabs">
               {EMOJI_SECTIONS.map((section, i) => (
                 <button
-                  key={section.title}
+                  key={section.titleKey}
                   type="button"
                   className={`emoji-tab ${activeTab === i ? 'active' : ''}`}
                   onClick={() => setActiveTab(i)}
                 >
-                  {section.title}
+                  {t(section.titleKey)}
                 </button>
               ))}
             </div>
@@ -113,7 +115,7 @@ export function EmojiPicker({ value, onChange, name, color, onColorChange }: Emo
             {/* Color palette */}
             {onColorChange && (
               <div className="color-palette-section">
-                <div className="color-palette-title">배경색</div>
+                <div className="color-palette-title">{t('emojiPicker.backgroundColor')}</div>
                 <div className="color-palette">
                   {AGENT_COLORS.map((c) => (
                     <button
@@ -129,7 +131,7 @@ export function EmojiPicker({ value, onChange, name, color, onColorChange }: Emo
             )}
 
             <button type="button" className="emoji-clear" onClick={clearEmoji}>
-              ❌ 아바타 초기화
+              {t('emojiPicker.resetAvatar')}
             </button>
           </div>
         )}

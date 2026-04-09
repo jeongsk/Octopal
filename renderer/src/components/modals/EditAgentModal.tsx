@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { EmojiPicker } from '../EmojiPicker'
+import { McpValidationModal } from './McpValidationModal'
 
 interface EditAgentModalProps {
   agent: OctoFile
@@ -29,6 +30,8 @@ export function EditAgentModal({ agent, folderPath, onClose, onSaved, onDeleted 
   const [mcpJson, setMcpJson] = useState(formatMcpJson(agent.mcpServers))
   const [mcpError, setMcpError] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [showMcpValidation, setShowMcpValidation] = useState(false)
+  const [pendingMcpServers, setPendingMcpServers] = useState<McpServersConfig | null>(null)
 
   const save = async () => {
     setError(null)
@@ -67,8 +70,17 @@ export function EditAgentModal({ agent, folderPath, onClose, onSaved, onDeleted 
       permissions,
       mcpServers,
     })
-    if (res.ok) onSaved()
-    else setError(res.error)
+    if (res.ok) {
+      // If MCP servers were configured, run validation
+      if (mcpServers && Object.keys(mcpServers).length > 0) {
+        setPendingMcpServers(mcpServers)
+        setShowMcpValidation(true)
+      } else {
+        onSaved()
+      }
+    } else {
+      setError(res.error)
+    }
   }
 
   const remove = async () => {
@@ -76,6 +88,16 @@ export function EditAgentModal({ agent, folderPath, onClose, onSaved, onDeleted 
     const res = await window.api.deleteOcto(agent.path)
     if (res.ok) onDeleted()
     else setError(res.error)
+  }
+
+  if (showMcpValidation && pendingMcpServers) {
+    return (
+      <McpValidationModal
+        mcpServers={pendingMcpServers}
+        onClose={() => { setShowMcpValidation(false); onSaved() }}
+        onDone={() => { setShowMcpValidation(false); onSaved() }}
+      />
+    )
   }
 
   return (

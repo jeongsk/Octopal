@@ -932,6 +932,147 @@ ipcMain.handle('octo:create', (_event, params: { folderPath: string; name: strin
   }
 })
 
+// ── MCP Health Check ──
+// Validates MCP server config by actually attempting to run the command and
+// checking if the process starts successfully. Returns per-server status.
+ipcMain.handle('mcp:healthCheck', async (_event, params: {
+  mcpServers: Record<string, { command: string; args?: string[]; env?: Record<string, string> }>
+}) => {
+  const { mcpServers } = params
+  if (!mcpServers || typeof mcpServers !== 'object') {
+    return { ok: false, error: 'Invalid MCP config' }
+  }
+
+  const mcpCheck = validateMcpConfig(mcpServers)
+  if (!mcpCheck.ok) return { ok: false, error: mcpCheck.error }
+
+  const results: Record<string, {
+    status: 'ok' | 'package_missing' | 'spawn_error' | 'timeout'
+    error?: string
+    packageName?: string
+  }> = {}
+
+  const env = sanitizedEnv()
+
+  for (const [name, config] of Object.entries(mcpCheck.sanitized)) {
+    try {
+      const result = await new Promise<{ status: 'ok' | 'package_missing' | 'spawn_error' | 'timeout'; error?: string; packageName?: string }>((resolve) => {
+        const timer = setTimeout(() => {
+          try { child.kill() } catch {}
+          // If process lived for 5s without error, it's probably fine
+          resolve({ status: 'ok' })
+        }, 5000)
+
+        let stderr = ''
+        const child = spawn(config.command, config.args || [], {
+          env: { ...env, ...(config.env || {}) },
+          stdio: ['ignore', 'pipe', 'pipe'],
+          cwd: os.tmpdir(),
+        })
+
+        child.stderr?.on('data', (d: Buffer) => { stderr += d.toString() })
+
+        child.on('error', (err: Error) => {
+          clearTimeout(timer)
+          if (err.message.includes('ENOENT')) {
+            // Extract package name from npx args
+            let packageName: string | undefined
+            if (config.command === 'npx' && config.args) {
+              const filtered = config.args.filter(a => a !== '-y')
+              packageName = filtered[0]
+            }
+            resolve({ status: 'package_missing', error: err.message, packageName })
+          } else {
+            resolve({ status: 'spawn_error', error: err.message })
+          }
+        })
+
+        child.on('exit', (code) => {
+          clearTimeout(timer)
+          if (code === 0) {
+            resolve({ status: 'ok' })
+          } else {
+            // Check if stderr mentions missing package
+            const lower = stderr.toLowerCase()
+            if (lower.includes('not found') || lower.includes('enoent') || lower.includes('could not resolve')) {
+              let packageName: string | undefined
+              if (config.command === 'npx' && config.args) {
+                const filtered = config.args.filter(a => a !== '-y')
+                packageName = filtered[0]
+              }
+              resolve({ status: 'package_missing', error: stderr.trim().slice(0, 300), packageName })
+            } else {
+              // Non-zero exit could mean bad token, bad config, etc.
+              // If it exited quickly with stderr mentioning auth/token, report it
+              if (lower.includes('unauthorized') || lower.includes('invalid token') || lower.includes('401') || lower.includes('403') || lower.includes('auth')) {
+                resolve({ status: 'spawn_error', error: `Authentication error: ${stderr.trim().slice(0, 200)}` })
+              } else {
+                resolve({ status: 'spawn_error', error: stderr.trim().slice(0, 300) || `Process exited with code ${code}` })
+              }
+            }
+          }
+        })
+
+        // Give the process a moment — if it stays alive, it's running
+        setTimeout(() => {
+          if (!child.killed && child.exitCode === null) {
+            clearTimeout(timer)
+            try { child.kill() } catch {}
+            resolve({ status: 'ok' })
+          }
+        }, 3000)
+      })
+
+      results[name] = result
+    } catch (e: any) {
+      results[name] = { status: 'spawn_error', error: e.message }
+    }
+  }
+
+  return { ok: true, results }
+})
+
+// ── MCP Package Install ──
+// Installs an npm package (used for MCP server dependencies)
+ipcMain.handle('mcp:installPackage', async (_event, params: { packageName: string }) => {
+  const { packageName } = params
+  // Validate package name (basic safety check)
+  if (!packageName || /[;&|`${}()<>!]/.test(packageName)) {
+    return { ok: false, error: 'Invalid package name' }
+  }
+
+  return new Promise<{ ok: boolean; error?: string }>((resolve) => {
+    const env = sanitizedEnv()
+    const child = spawn('npm', ['install', '-g', packageName], {
+      env,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      cwd: os.tmpdir(),
+    })
+
+    let stderr = ''
+    child.stderr?.on('data', (d: Buffer) => { stderr += d.toString() })
+    child.stdout?.on('data', () => {}) // drain
+
+    child.on('error', (err: Error) => {
+      resolve({ ok: false, error: err.message })
+    })
+
+    child.on('exit', (code) => {
+      if (code === 0) {
+        resolve({ ok: true })
+      } else {
+        resolve({ ok: false, error: stderr.trim().slice(0, 500) || `npm install exited with code ${code}` })
+      }
+    })
+
+    // Timeout after 60s
+    setTimeout(() => {
+      try { child.kill() } catch {}
+      resolve({ ok: false, error: 'Installation timed out after 60 seconds' })
+    }, 60000)
+  })
+})
+
 ipcMain.handle('folder:listOctos', (_event, folderPath: string) => {
   try {
     if (!fs.existsSync(folderPath)) return []
@@ -1461,7 +1602,27 @@ How to collaborate (very important):
           } catch {}
         }
       })
-      child.stderr.on('data', (d) => { stderr += d.toString() })
+      child.stderr.on('data', (d) => {
+        const chunk = d.toString()
+        stderr += chunk
+        // Detect MCP token/auth errors and notify renderer
+        const lower = chunk.toLowerCase()
+        if (lower.includes('unauthorized') || lower.includes('invalid token') ||
+            lower.includes('token expired') || lower.includes('401') ||
+            lower.includes('authentication failed') || lower.includes('403 forbidden')) {
+          // Try to extract which MCP server had the issue
+          const mcpServers = octoContent.mcpServers
+          const serverNames = mcpServers ? Object.keys(mcpServers) : []
+          const matchedServer = serverNames.find((s) => lower.includes(s.toLowerCase())) || serverNames[0] || 'unknown'
+          BrowserWindow.getAllWindows().forEach((win) => {
+            win.webContents.send('mcp:tokenExpiry', {
+              agentName,
+              serverName: matchedServer,
+              message: chunk.trim().slice(0, 200),
+            })
+          })
+        }
+      })
       child.on('close', (code) => {
         if (interruptedRuns.has(runId)) {
           interruptedRuns.delete(runId)
@@ -1509,6 +1670,7 @@ ipcMain.handle('agent:stop', (_event, runId: string) => {
 ipcMain.handle('agent:stopAll', () => {
   const count = runningAgents.size
   for (const [runId, child] of runningAgents) {
+    interruptedRuns.add(runId)
     try {
       child.kill('SIGTERM')
     } catch {}

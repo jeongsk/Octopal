@@ -112,6 +112,20 @@ contextBridge.exposeInMainWorld('api', {
   }) => ipcRenderer.invoke('dispatcher:checkContext', params),
   getPlatform: () => ipcRenderer.invoke('app:getPlatform'),
 
+  // ── MCP Health Check & Install ──
+  mcpHealthCheck: (params: {
+    mcpServers: Record<string, { command: string; args?: string[]; env?: Record<string, string> }>
+  }) => ipcRenderer.invoke('mcp:healthCheck', params),
+  mcpInstallPackage: (params: { packageName: string }) =>
+    ipcRenderer.invoke('mcp:installPackage', params),
+  onMcpTokenExpiry: (
+    cb: (data: { agentName: string; serverName: string; message: string }) => void,
+  ) => {
+    const handler = (_event: any, data: any) => cb(data)
+    ipcRenderer.on('mcp:tokenExpiry', handler)
+    return () => ipcRenderer.removeListener('mcp:tokenExpiry', handler)
+  },
+
   // ── File Access Approval ──
   onFileAccessRequest: (
     cb: (data: {

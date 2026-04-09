@@ -207,6 +207,9 @@
     "thinking": "생각하는 중…",
     "waiting": "대기 중 — {{name}}이(가) 이전 메시지를 처리하고 있어요…",
     "stopped": "*(중지됨)*",
+    "bundleModify": "⏸️ @{{agent}} 작업을 중지하고 수정된 지시를 전달합니다.",
+    "bundleForward": "📦 메시지를 묶어서 @{{agent}}에게 다시 전달합니다.",
+    "additionalInstruction": "추가 지시: {{text}}",
     "permRetryPrompt": "(이전에 권한이 없어서 작업을 수행하지 못했습니다. 사용자가 권한을 승인했습니다. 이전 요청을 이어서 수행해주세요.)\n\n사용자의 원래 요청: {{request}}"
   },
   "label": {
@@ -221,6 +224,34 @@
     "connectedCount": "서버 {{count}}개 연결됨",
     "connectedCount_other": "서버 {{count}}개 연결됨"
   },
+  "mcpValidation": {
+    "title": "MCP 서버 검증",
+    "checking": "연결 확인 중...",
+    "connected": "연결 성공",
+    "packageMissing": "패키지 \"{{package}}\"가 설치되지 않았습니다",
+    "packageMissingHint": "아래 '설치' 버튼을 눌러 {{package}}를 설치하세요.",
+    "spawnError": "서버 시작 실패",
+    "authError": "{{server}} 토큰이 만료되었거나 유효하지 않습니다",
+    "authErrorHint": "에이전트 설정에서 새 토큰을 발급받아 입력하세요. (예: Figma > Settings > Personal Access Tokens)",
+    "networkError": "네트워크에 연결할 수 없습니다",
+    "networkErrorHint": "인터넷 연결을 확인하고 다시 시도하세요. 방화벽이나 프록시 설정이 연결을 차단하고 있을 수 있습니다.",
+    "unknownError": "알 수 없는 오류가 발생했습니다",
+    "installing": "{{package}} 설치 중...",
+    "installFailed": "설치 실패",
+    "installFailedHint": "터미널에서 직접 설치를 시도하거나, 네트워크 연결을 확인하세요.",
+    "install": "설치",
+    "retry": "재시도",
+    "serverConnected": "{{server}} MCP 서버가 연결되어 준비 완료!",
+    "allConnected": "모든 MCP 서버가 연결되어 준비 완료!",
+    "hasIssues": "서버에 문제가 있습니다. 해당 MCP 도구 없이도 에이전트는 작동합니다.",
+    "recheck": "다시 확인",
+    "skip": "건너뛰기",
+    "done": "완료",
+    "continueAnyway": "그래도 계속",
+    "tokenExpiry": "MCP 토큰 문제",
+    "tokenExpiryMessage": "에이전트 \"{{agent}}\"의 {{server}} 토큰이 만료되었거나 유효하지 않습니다. 설정에서 새 토큰을 입력하세요.",
+    "updateToken": "토큰 수정"
+  },
   "security": {
     "accessRequest": "파일 접근 요청",
     "accessRequestDesc": "에이전트 \"{{agent}}\"가 프로젝트 외부 파일에 접근하려고 합니다.",
@@ -230,5 +261,13 @@
     "allowOnce": "이번만 허용",
     "allowAlways": "항상 허용",
     "deny": "거부"
+  },
+  "emojiPicker": {
+    "recommended": "추천",
+    "people": "사람",
+    "animals": "동물",
+    "other": "기타",
+    "backgroundColor": "배경색",
+    "resetAvatar": "❌ 아바타 초기화"
   }
 }

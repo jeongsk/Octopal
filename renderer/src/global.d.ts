@@ -164,6 +164,23 @@ interface Window {
     stopAllAgents: () => Promise<{ ok: true; stopped: number }>
     getPlatform: () => Promise<string>
 
+    // MCP Health Check & Install
+    mcpHealthCheck: (params: {
+      mcpServers: Record<string, { command: string; args?: string[]; env?: Record<string, string> }>
+    }) => Promise<{
+      ok: true
+      results: Record<string, {
+        status: 'ok' | 'package_missing' | 'spawn_error' | 'timeout'
+        error?: string
+        packageName?: string
+      }>
+    } | { ok: false; error: string }>
+    mcpInstallPackage: (params: { packageName: string }) =>
+      Promise<{ ok: boolean; error?: string }>
+    onMcpTokenExpiry: (
+      cb: (data: { agentName: string; serverName: string; message: string }) => void,
+    ) => () => void
+
     // File Access Approval
     onFileAccessRequest: (
       cb: (data: {

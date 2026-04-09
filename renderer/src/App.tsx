@@ -15,6 +15,7 @@ import { EditAgentModal } from './components/modals/EditAgentModal'
 import { ClaudeLoginModal } from './components/modals/ClaudeLoginModal'
 import { FileAccessApprovalModal, type FileAccessDecision } from './components/modals/FileAccessApprovalModal'
 import { SettingsPanel } from './components/SettingsPanel'
+import { ToastContainer, showToast } from './components/Toast'
 
 export function App() {
   const { t, i18n } = useTranslation()
@@ -106,6 +107,29 @@ export function App() {
       }
     })
   }, [])
+
+  // Listen for MCP token expiry notifications from main process
+  useEffect(() => {
+    return window.api.onMcpTokenExpiry((data) => {
+      showToast({
+        type: 'warning',
+        title: t('mcpValidation.tokenExpiry'),
+        message: t('mcpValidation.tokenExpiryMessage', {
+          agent: data.agentName,
+          server: data.serverName,
+        }),
+        duration: 0, // sticky — user must dismiss
+        action: {
+          label: t('mcpValidation.updateToken'),
+          onClick: () => {
+            // Find and open edit modal for this agent
+            const agent = octos.find((o) => o.name === data.agentName)
+            if (agent) setEditingAgent(agent)
+          },
+        },
+      })
+    })
+  }, [t, octos])
 
   // Compact mode: below this threshold sidebars open as overlays
   const COMPACT_BREAKPOINT = 700
@@ -592,8 +616,8 @@ export function App() {
                 id: bundleMsgId,
                 agentName: '__system__',
                 text: isModify
-                  ? `⏸️ @${activeRun.agentName} 작업을 중지하고 수정된 지시를 전달합니다.`
-                  : `📦 메시지를 묶어서 @${activeRun.agentName}에게 다시 전달합니다.`,
+                  ? t('app.bundleModify', { agent: activeRun.agentName })
+                  : t('app.bundleForward', { agent: activeRun.agentName }),
                 ts: Date.now(),
                 pending: false,
               },
@@ -605,7 +629,7 @@ export function App() {
             combinedText = contextRes.bundledPrompt
           } else if (!isModify) {
             // Supplement fallback: merge original + new
-            combinedText = `${activeRun.prompt}\n\n추가 지시: ${combinedText}`
+            combinedText = `${activeRun.prompt}\n\n${t('app.additionalInstruction', { text: combinedText })}`
           }
           // For modify without bundledPrompt, just use combinedText as-is (the new message replaces)
         }
@@ -1079,15 +1103,20 @@ export function App() {
             onToggleRightSidebar={() => setRightSidebarOpen((v) => !v)}
             onStopAll={async () => {
               await window.api.stopAllAgents()
-              // Clear pending state from all messages in current folder
-              if (activeFolder) {
-                setMessages((prev) => ({
-                  ...prev,
-                  [activeFolder]: (prev[activeFolder] || []).map((m) =>
+
+              // Clear activeRunsRef entries for ALL folders (not just current)
+              activeRunsRef.current.clear()
+
+              // Clear pending state from ALL folders, not just the current one
+              setMessages((prev) => {
+                const next = { ...prev }
+                for (const folderKey of Object.keys(next)) {
+                  next[folderKey] = (next[folderKey] || []).map((m) =>
                     m.pending ? { ...m, pending: false, text: m.text || t('app.stopped') } : m,
-                  ),
-                }))
-              }
+                  )
+                }
+                return next
+              })
             }}
           />
         ) : centerTab === 'activity' ? (
@@ -1205,6 +1234,8 @@ export function App() {
           onClose={() => setFileAccessRequest(null)}
         />
       )}
+
+      <ToastContainer />
     </div>
   )
 }

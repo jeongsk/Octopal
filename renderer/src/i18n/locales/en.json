@@ -207,6 +207,9 @@
     "thinking": "Thinking…",
     "waiting": "Waiting — {{name}} is still working on a previous message…",
     "stopped": "*(stopped)*",
+    "bundleModify": "⏸️ @{{agent}} Stopping current task to deliver updated instructions.",
+    "bundleForward": "📦 Bundling messages and forwarding to @{{agent}}.",
+    "additionalInstruction": "Additional instruction: {{text}}",
     "permRetryPrompt": "(Previously couldn't perform task due to lack of permissions. User approved permissions. Please continue with the original request.)\n\nUser's original request: {{request}}"
   },
   "label": {
@@ -221,6 +224,34 @@
     "connectedCount": "{{count}} server connected",
     "connectedCount_other": "{{count}} servers connected"
   },
+  "mcpValidation": {
+    "title": "MCP Server Validation",
+    "checking": "Checking connection...",
+    "connected": "Connected successfully",
+    "packageMissing": "Package \"{{package}}\" is not installed",
+    "packageMissingHint": "Click 'Install' below to install {{package}}.",
+    "spawnError": "Failed to start server",
+    "authError": "{{server}} token has expired or is invalid",
+    "authErrorHint": "Go to agent settings and enter a new token. (e.g., Figma > Settings > Personal Access Tokens)",
+    "networkError": "Cannot connect to the network",
+    "networkErrorHint": "Check your internet connection and try again. A firewall or proxy may be blocking the connection.",
+    "unknownError": "An unknown error occurred",
+    "installing": "Installing {{package}}...",
+    "installFailed": "Installation failed",
+    "installFailedHint": "Try installing manually in the terminal, or check your network connection.",
+    "install": "Install",
+    "retry": "Retry",
+    "serverConnected": "{{server}} MCP server is connected and ready!",
+    "allConnected": "All MCP servers are connected and ready!",
+    "hasIssues": "The server has issues. The agent will still work, but without MCP tools.",
+    "recheck": "Re-check",
+    "skip": "Skip",
+    "done": "Done",
+    "continueAnyway": "Continue anyway",
+    "tokenExpiry": "MCP Token Issue",
+    "tokenExpiryMessage": "Agent \"{{agent}}\"'s {{server}} token has expired or is invalid. Please enter a new token in settings.",
+    "updateToken": "Update Token"
+  },
   "security": {
     "accessRequest": "File Access Request",
     "accessRequestDesc": "Agent \"{{agent}}\" is trying to access a file outside the project.",
@@ -230,5 +261,13 @@
     "allowOnce": "Allow Once",
     "allowAlways": "Always Allow",
     "deny": "Deny"
+  },
+  "emojiPicker": {
+    "recommended": "Recommended",
+    "people": "People",
+    "animals": "Animals",
+    "other": "Other",
+    "backgroundColor": "Background color",
+    "resetAvatar": "❌ Reset avatar"
   }
 }
