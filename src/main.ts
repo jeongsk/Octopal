@@ -1162,11 +1162,20 @@ When in doubt between handoff and approval, prefer "approval" — the human can 
       })
       let stdout = ''
       let stderr = ''
+      const timer = setTimeout(() => {
+        child.kill('SIGTERM')
+        reject(new Error('mention:classify CLI timeout'))
+      }, 15_000)
       child.stdout.on('data', (d) => { stdout += d.toString() })
       child.stderr.on('data', (d) => { stderr += d.toString() })
       child.on('close', (code) => {
+        clearTimeout(timer)
         if (code !== 0) reject(new Error(stderr || `exited with ${code}`))
         else resolve(stdout.trim())
+      })
+      child.on('error', (err) => {
+        clearTimeout(timer)
+        reject(err)
       })
     })
 
@@ -1344,11 +1353,20 @@ Never include agents not in the list. The leader field is required.`
       })
       let stdout = ''
       let stderr = ''
+      const timer = setTimeout(() => {
+        child.kill('SIGTERM')
+        reject(new Error('dispatcher:route CLI timeout'))
+      }, 15_000)
       child.stdout.on('data', (d) => { stdout += d.toString() })
       child.stderr.on('data', (d) => { stderr += d.toString() })
       child.on('close', (code) => {
+        clearTimeout(timer)
         if (code !== 0) reject(new Error(stderr || `exited with ${code}`))
         else resolve(stdout.trim())
+      })
+      child.on('error', (err) => {
+        clearTimeout(timer)
+        reject(err)
       })
     })
 
@@ -1830,11 +1848,20 @@ Reply with ONLY a JSON object, nothing else:
       })
       let stdout = ''
       let stderr = ''
+      const timer = setTimeout(() => {
+        child.kill('SIGTERM')
+        reject(new Error('dispatcher:checkContext CLI timeout'))
+      }, 15_000)
       child.stdout.on('data', (d) => { stdout += d.toString() })
       child.stderr.on('data', (d) => { stderr += d.toString() })
       child.on('close', (code) => {
+        clearTimeout(timer)
         if (code !== 0) reject(new Error(stderr || `exited with ${code}`))
         else resolve(stdout.trim())
+      })
+      child.on('error', (err) => {
+        clearTimeout(timer)
+        reject(err)
       })
     })
 

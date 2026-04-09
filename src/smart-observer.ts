@@ -181,10 +181,10 @@ export class SmartObserver {
   async forceRefresh(folderPath: string): Promise<LLMContext | null> {
     if (!this._enabled) return this.llmContexts.get(folderPath) || null
 
-    // Wait for any in-flight refresh to complete
+    // Wait for any in-flight refresh to complete (must exceed CLI_TIMEOUT_MS)
     if (this.refreshInFlight.has(folderPath)) {
-      // Simple poll — max 10 attempts × 500ms = 5s
-      for (let i = 0; i < 10; i++) {
+      // Poll — max 35 attempts × 500ms = 17.5s (> CLI_TIMEOUT_MS of 15s)
+      for (let i = 0; i < 35; i++) {
         await sleep(500)
         if (!this.refreshInFlight.has(folderPath)) break
       }
