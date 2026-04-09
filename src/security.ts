@@ -1,4 +1,7 @@
 import path from 'path'
+import os from 'os'
+import fs from 'fs'
+import { execSync } from 'child_process'
 
 // ── Security Utilities ────────────────────────────────────────────────────────
 
@@ -270,8 +273,108 @@ export function validateMcpConfig(
   return { ok: true, sanitized }
 }
 
+/**
+ * Cache for the login shell PATH — resolved once at startup.
+ * Avoids spawning a shell on every sanitizedEnv() call.
+ */
+let _cachedLoginPath: string | null = null
+
+/** @internal — Reset cached PATH (for testing only) */
+export function _resetCachedPath(): void {
+  _cachedLoginPath = null
+}
+
+/**
+ * Get the full PATH from the user's login shell.
+ * Electron apps launched from Finder/dock inherit a minimal PATH
+ * (/usr/bin:/bin:/usr/sbin:/sbin).  This function spawns a login shell
+ * to read the user's real PATH (which includes nvm, homebrew, etc.).
+ * Falls back to manual path extension if the shell approach fails.
+ */
+function getLoginShellPath(): string {
+  if (process.platform === 'win32') return process.env.PATH || ''
+  try {
+    const shell = process.env.SHELL || '/bin/zsh'
+    // -ilc: interactive login shell, run command
+    // Use printf to avoid trailing newlines; redirect stderr to /dev/null
+    const result = execSync(`${shell} -ilc 'printf "%s" "$PATH"' 2>/dev/null`, {
+      timeout: 5000,
+      encoding: 'utf-8',
+    })
+    const shellPath = result.trim()
+    if (shellPath && shellPath.length > 20) return shellPath // sanity check
+  } catch {
+    // Shell approach failed — fall through to manual extension
+  }
+  return ''
+}
+
+/**
+ * Detect nvm node bin directories by scanning the filesystem.
+ * Returns paths for all installed node versions (sorted newest first).
+ */
+function detectNvmNodeBins(): string[] {
+  const home = os.homedir()
+  const nvmDir = path.join(home, '.nvm', 'versions', 'node')
+  try {
+    const versions = fs.readdirSync(nvmDir)
+      .filter((d) => d.startsWith('v'))
+      .sort((a, b) => b.localeCompare(a, undefined, { numeric: true }))
+    return versions.map((v) => path.join(nvmDir, v, 'bin'))
+  } catch {
+    return []
+  }
+}
+
+/**
+ * On macOS/Linux, Electron apps launched from Finder/dock inherit a minimal
+ * PATH (/usr/bin:/bin:/usr/sbin:/sbin).  We extend it with the user's real
+ * login shell PATH, plus common directories where CLI tools like `claude`
+ * are typically installed.
+ */
+function extendedPath(): string {
+  if (_cachedLoginPath !== null) return _cachedLoginPath
+
+  const current = process.env.PATH || ''
+  const home = os.homedir()
+
+  // 1. Try to get the full PATH from the user's login shell
+  const shellPath = getLoginShellPath()
+
+  // 2. Manual fallback paths (always included as safety net)
+  const extra = [
+    path.join(home, '.local', 'bin'),          // pip / pipx / claude CLI
+    path.join(home, '.claude', 'local'),        // claude CLI (newer)
+    path.join(home, '.claude', 'bin'),          // claude CLI
+    '/usr/local/bin',                           // Homebrew (Intel Mac)
+    '/opt/homebrew/bin',                        // Homebrew (Apple Silicon)
+    '/opt/homebrew/sbin',
+    path.join(home, '.volta', 'bin'),           // volta
+    path.join(home, '.cargo', 'bin'),           // rust / cargo
+    path.join(home, 'Library', 'pnpm'),         // pnpm global
+    ...detectNvmNodeBins(),                     // nvm (all installed versions)
+  ]
+
+  // Merge: current PATH + shell PATH + manual extras, deduplicating
+  const seen = new Set<string>()
+  const merged: string[] = []
+  for (const p of [...current.split(':'), ...shellPath.split(':'), ...extra]) {
+    if (p && !seen.has(p)) {
+      seen.add(p)
+      merged.push(p)
+    }
+  }
+
+  _cachedLoginPath = merged.join(':')
+  return _cachedLoginPath
+}
+
 export function sanitizedEnv(): NodeJS.ProcessEnv {
   const env = { ...process.env }
+
+  // Extend PATH so CLI tools are discoverable when launched from Finder/dock
+  env.PATH = extendedPath()
+
   for (const key of Object.keys(env)) {
     const upperKey = key.toUpperCase()
     if (SENSITIVE_ENV_KEYS.has(upperKey) ||

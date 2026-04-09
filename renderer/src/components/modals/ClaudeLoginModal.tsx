@@ -1,12 +1,35 @@
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface ClaudeLoginModalProps {
   installed: boolean
   onDismiss: () => void
+  onStatusChange?: (status: { installed: boolean; loggedIn: boolean }) => void
 }
 
-export function ClaudeLoginModal({ installed, onDismiss }: ClaudeLoginModalProps) {
+export function ClaudeLoginModal({ installed, onDismiss, onStatusChange }: ClaudeLoginModalProps) {
   const { t } = useTranslation()
+  const [checking, setChecking] = useState(false)
+  const [retryFailed, setRetryFailed] = useState(false)
+
+  const handleRetryCheck = async () => {
+    setChecking(true)
+    setRetryFailed(false)
+    try {
+      const status = await window.api.checkClaudeCli()
+      if (status.installed && status.loggedIn) {
+        onStatusChange?.(status)
+        onDismiss()
+      } else {
+        onStatusChange?.(status)
+        setRetryFailed(true)
+      }
+    } catch {
+      setRetryFailed(true)
+    } finally {
+      setChecking(false)
+    }
+  }
 
   return (
     <div className="modal-backdrop modal-backdrop--blocking">
@@ -44,10 +67,15 @@ export function ClaudeLoginModal({ installed, onDismiss }: ClaudeLoginModalProps
               </div>
             </>
           )}
+          {retryFailed && (
+            <p className="claude-login-retry-failed">
+              {t('modals.claudeLogin.retryFailed')}
+            </p>
+          )}
         </div>
         <div className="claude-login-actions">
-          <button className="btn-primary" onClick={onDismiss}>
-            {t('common.ok')}
+          <button className="btn-primary" onClick={handleRetryCheck} disabled={checking}>
+            {checking ? t('modals.claudeLogin.checking') : t('common.ok')}
           </button>
         </div>
       </div>

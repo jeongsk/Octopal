@@ -1099,6 +1099,7 @@ export function App() {
         <ClaudeLoginModal
           installed={claudeCliStatus.installed}
           onDismiss={() => setClaudeCliStatus(null)}
+          onStatusChange={(status) => setClaudeCliStatus(status)}
         />
       )}
 

@@ -168,7 +168,9 @@
       "descNotInstalled": "Octopal requires the Claude CLI to communicate with agents. Please install it first:",
       "descNotLoggedIn": "You need to log in to Claude CLI before using Octopal. Open a terminal and run:",
       "thenLogin": "Then log in:",
-      "hint": "After logging in, restart Octopal or dismiss this dialog."
+      "hint": "After logging in, restart Octopal or dismiss this dialog.",
+      "retryFailed": "Claude CLI still not found. Please install and log in, then try again.",
+      "checking": "Checking..."
     }
   },
   "activity": {

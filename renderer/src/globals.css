@@ -1629,6 +1629,16 @@ button {
   margin-top: 8px;
 }
 
+.claude-login-retry-failed {
+  color: var(--error-text, #ff6b6b);
+  font-size: 0.85rem;
+  margin-top: 8px;
+  padding: 6px 10px;
+  background: var(--error-bg, rgba(255, 107, 107, 0.1));
+  border-radius: var(--radius-sm, 6px);
+  border: 1px solid var(--error-border, rgba(255, 107, 107, 0.2));
+}
+
 .claude-login-actions {
   display: flex;
   gap: 8px;

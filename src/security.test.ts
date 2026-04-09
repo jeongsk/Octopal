@@ -5,6 +5,7 @@ import {
   validateOctoPath,
   validatePathContainment,
   sanitizedEnv,
+  _resetCachedPath,
   sanitizeError,
   acquireFileLock,
   classifyPathAccess,
@@ -351,12 +352,14 @@ describe('sanitizedEnv', () => {
   const originalEnv = process.env
 
   beforeEach(() => {
-    // Reset env to a known state
+    // Reset env to a known state and clear cached PATH
     process.env = { ...originalEnv }
+    _resetCachedPath()
   })
 
   afterEach(() => {
     process.env = originalEnv
+    _resetCachedPath()
   })
 
   it('removes explicitly listed sensitive keys', () => {
@@ -422,7 +425,7 @@ describe('sanitizedEnv', () => {
 
     const env = sanitizedEnv()
     expect(env.HOME).toBe('/home/user')
-    expect(env.PATH).toBe('/usr/bin')
+    expect(env.PATH).toContain('/usr/bin') // starts with original, may have extra paths
     expect(env.NODE_ENV).toBe('production')
     expect(env.LANG).toBe('en_US.UTF-8')
   })
@@ -535,10 +538,12 @@ describe('Edge Cases — sanitizedEnv thoroughness', () => {
 
   beforeEach(() => {
     process.env = { ...originalEnv }
+    _resetCachedPath()
   })
 
   afterEach(() => {
     process.env = originalEnv
+    _resetCachedPath()
   })
 
   it('should strip keys with SECRET anywhere in name', () => {
@@ -552,7 +557,9 @@ describe('Edge Cases — sanitizedEnv thoroughness', () => {
   it('should handle empty env gracefully', () => {
     process.env = {}
     const env = sanitizedEnv()
-    expect(Object.keys(env).length).toBe(0)
+    // Only PATH should be present (from extendedPath fallback)
+    const keys = Object.keys(env)
+    expect(keys.every((k) => k === 'PATH')).toBe(true)
   })
 
   it('should preserve TERM_SESSION_ID despite containing _TOKEN-like suffix', () => {
