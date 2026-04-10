@@ -1,0 +1,36 @@
+[package]
+name = "octopal"
+version = "0.1.19"
+description = "Chat with your .octo agents"
+authors = ["Studio H"]
+edition = "2021"
+
+[lib]
+name = "octopal_lib"
+crate-type = ["lib", "cdylib", "staticlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["macos-private-api"] }
+tauri-plugin-dialog = "2"
+tauri-plugin-shell = "2"
+tauri-plugin-fs = "2"
+tauri-plugin-process = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["full"] }
+uuid = { version = "1", features = ["v4"] }
+notify = "6"
+dirs = "5"
+libc = "0.2"
+chrono = "0.4"
+base64 = "0.22"
+
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true

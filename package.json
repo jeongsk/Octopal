@@ -19,7 +19,10 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "postinstall": "node scripts/patch-electron-name.js"
+    "postinstall": "node scripts/patch-electron-name.js",
+    "tauri": "tauri",
+    "tauri:dev": "cargo tauri dev",
+    "tauri:build": "cargo tauri build"
   },
   "devDependencies": {
     "@types/canvas-confetti": "^1.9.0",
@@ -88,6 +91,8 @@
     }
   },
   "dependencies": {
+    "@tauri-apps/api": "^2.10.1",
+    "@tauri-apps/cli": "^2.10.1",
     "canvas-confetti": "^1.9.4",
     "dugite": "^3.2.1",
     "i18next": "^26.0.3",

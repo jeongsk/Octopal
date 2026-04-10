@@ -8,3 +8,7 @@ release
 .octopal/uploads/
 .octopal/room-log.json
 *.octo
+
+# Tauri
+src-tauri/target
+src-tauri/gen
