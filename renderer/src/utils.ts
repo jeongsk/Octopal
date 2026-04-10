@@ -8,9 +8,10 @@ export const AGENT_COLORS = [
   '#8EA07D',  // Sage Green  (earthy cool)
 ]
 
-export function colorForName(name: string) {
+export function colorForName(name: string | undefined | null) {
+  const s = name || '?'
   let hash = 0
-  for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) | 0
+  for (let i = 0; i < s.length; i++) hash = (hash * 31 + s.charCodeAt(i)) | 0
   return AGENT_COLORS[Math.abs(hash) % AGENT_COLORS.length]
 }
 

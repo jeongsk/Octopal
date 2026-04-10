@@ -15,7 +15,8 @@ function isEmoji(str: string): boolean {
   return /^[\p{Emoji_Presentation}\p{Extended_Pictographic}]/u.test(str)
 }
 
-export function AgentAvatar({ name, icon, color, size = 'md', showOnlineDot = false, mcpStatus }: AgentAvatarProps) {
+export function AgentAvatar({ name: rawName, icon, color, size = 'md', showOnlineDot = false, mcpStatus }: AgentAvatarProps) {
+  const name = rawName || '?'
   const bgColor = color || colorForName(name)
   const hasEmoji = icon && isEmoji(icon)
 
@@ -32,7 +33,7 @@ export function AgentAvatar({ name, icon, color, size = 'md', showOnlineDot = fa
       {hasEmoji ? (
         <span className="avatar-emoji-char">{icon}</span>
       ) : (
-        (name?.[0] ?? '?').toUpperCase()
+        name[0].toUpperCase()
       )}
       {showOnlineDot && <span className={dotClass} />}
     </div>
