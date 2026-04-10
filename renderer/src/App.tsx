@@ -18,6 +18,15 @@ import { SettingsPanel } from './components/SettingsPanel'
 import { ToastContainer, showToast } from './components/Toast'
 import { expandShortcut } from './shortcut-expander'
 
+/** Race a promise against a timeout. Rejects with a descriptive error if ms elapses. */
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout>
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms)
+  })
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer))
+}
+
 export function App() {
   const { t, i18n } = useTranslation()
   const [state, setState] = useState<AppState>({ workspaces: [], activeWorkspaceId: null })
@@ -627,11 +636,15 @@ export function App() {
     if (runningInFolder.length > 0) {
       const [activeKey, activeRun] = runningInFolder[0]
       try {
-        const contextRes = await window.api.checkContext({
-          originalPrompt: activeRun.prompt,
-          newMessage: combinedText,
-          agentName: activeRun.agentName,
-        })
+        const contextRes = await withTimeout(
+          window.api.checkContext({
+            originalPrompt: activeRun.prompt,
+            newMessage: combinedText,
+            agentName: activeRun.agentName,
+          }),
+          20_000,
+          'Context check',
+        )
 
         if (contextRes.ok && contextRes.decision !== 'unrelated') {
           // Interrupt the running agent
@@ -728,23 +741,39 @@ export function App() {
           .filter((m) => m.agentName !== '__dispatcher__' && m.agentName !== '__system__' && !m.pending)
           .slice(-6)
           .map((m) => ({ agentName: m.agentName, text: m.text }))
-        const res = await window.api.dispatch({
-          message: combinedText,
-          agents: visibleAgents.map((r) => ({ name: r.name, role: r.role })),
-          recentHistory: recent,
-          folderPath,
-        })
-        setMessages((prev) => ({
-          ...prev,
-          [folderPath]: (prev[folderPath] || []).filter((m) => m.id !== dispatcherMsgId),
-        }))
+        let res: { ok: boolean; leader?: string; collaborators?: string[]; model?: string }
+        try {
+          res = await withTimeout(
+            window.api.dispatch({
+              message: combinedText,
+              agents: visibleAgents.map((r) => ({ name: r.name, role: r.role })),
+              recentHistory: recent,
+              folderPath,
+            }),
+            20_000,
+            'Dispatcher routing',
+          )
+        } catch (err) {
+          console.warn('[Dispatcher] routing failed, falling back to first visible agent:', err)
+          res = { ok: false }
+        } finally {
+          setMessages((prev) => ({
+            ...prev,
+            [folderPath]: (prev[folderPath] || []).filter((m) => m.id !== dispatcherMsgId),
+          }))
+        }
         if (res.ok) {
           const leaderMatch = octos.find((r) => r.name === res.leader)
           if (leaderMatch) {
             leader = leaderMatch
-            collaborators = octos.filter((r) => res.collaborators.includes(r.name))
+            collaborators = octos.filter((r) => (res.collaborators ?? []).includes(r.name))
             dispatcherModel = res.model
           }
+        }
+        // Fallback: if dispatcher failed or returned no leader, pick first visible agent
+        if (!leader) {
+          leader = visibleAgents[0]
+          console.warn('[Dispatcher] No leader resolved, falling back to:', leader.name)
         }
       }
     }
@@ -806,8 +835,17 @@ export function App() {
     agentLocksRef.current.set(lockKey, ourLock)
 
     // Wait for the previous run on this agent to finish before we start.
+    // Timeout after 120s to prevent infinite hang if a previous run is stuck.
     if (previousLock) {
-      try { await previousLock } catch {}
+      try {
+        await withTimeout(previousLock, 120_000, `Agent lock wait (${target.name})`)
+      } catch (err) {
+        console.warn(`[AgentLock] ${target.name} lock wait timed out, proceeding anyway:`, err)
+        // Force-clear the stale lock so future runs aren't blocked
+        if (agentLocksRef.current.get(lockKey) !== ourLock) {
+          agentLocksRef.current.delete(lockKey)
+        }
+      }
       // Update the activity line now that we're starting.
       setMessages((prev) => {
         const list = prev[folderPathAtStart] || []
