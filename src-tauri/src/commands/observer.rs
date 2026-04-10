@@ -148,6 +148,6 @@ pub fn dispatcher_check_context(
 ) -> Result<serde_json::Value, String> {
     Ok(serde_json::json!({
         "ok": true,
-        "same_context": true
+        "decision": "supplement"
     }))
 }

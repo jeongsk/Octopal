@@ -9,6 +9,51 @@ use tauri::{AppHandle, Emitter, State};
 #[cfg(unix)]
 extern crate libc;
 
+/// Resolve the full path to the `claude` CLI binary.
+/// GUI apps on macOS don't inherit the shell PATH, so we check common locations.
+fn resolve_claude_path() -> String {
+    // 1. Try bare `claude` first (works when PATH is inherited, e.g. `cargo tauri dev`)
+    if let Ok(output) = Command::new("which").arg("claude").output() {
+        if output.status.success() {
+            let p = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            if !p.is_empty() {
+                return p;
+            }
+        }
+    }
+
+    // 2. Check common install locations
+    let home = std::env::var("HOME").unwrap_or_default();
+    let candidates = [
+        format!("{}/.nvm/versions/node/v22.15.1/bin/claude", home),
+        format!("{}/.local/bin/claude", home),
+        format!("{}/.npm-global/bin/claude", home),
+        "/usr/local/bin/claude".to_string(),
+        "/opt/homebrew/bin/claude".to_string(),
+    ];
+    for candidate in &candidates {
+        if Path::new(candidate).exists() {
+            return candidate.clone();
+        }
+    }
+
+    // 3. Try to find via node/npm
+    if let Ok(output) = Command::new("/bin/sh")
+        .args(&["-l", "-c", "which claude"])
+        .output()
+    {
+        if output.status.success() {
+            let p = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            if !p.is_empty() {
+                return p;
+            }
+        }
+    }
+
+    // Fallback — will fail with a clear error message
+    "claude".to_string()
+}
+
 #[derive(Clone, Serialize)]
 struct ActivityEvent {
     #[serde(rename = "runId")]
@@ -76,7 +121,8 @@ pub struct StopAllResult {
 /// Check if claude CLI is installed and logged in
 #[tauri::command]
 pub async fn check_claude_cli() -> Result<serde_json::Value, String> {
-    let output = Command::new("claude")
+    let claude_bin = resolve_claude_path();
+    let output = Command::new(&claude_bin)
         .arg("--version")
         .output();
 
@@ -374,14 +420,17 @@ pub async fn send_message(
     let state_interrupted = state.interrupted_runs.clone();
 
     let result = tokio::task::spawn_blocking(move || {
-        let mut child = Command::new("claude")
+        // Resolve full path to `claude` — GUI apps on macOS don't inherit shell PATH
+        let claude_bin = resolve_claude_path();
+
+        let mut child = Command::new(&claude_bin)
             .args(&claude_args)
             .current_dir(&folder_clone)
             .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
+            .stderr(Stdio::null()) // Don't pipe stderr — prevents deadlock when buffer fills
             .stdin(Stdio::null())
             .spawn()
-            .map_err(|e| format!("Failed to spawn claude: {}", e))?;
+            .map_err(|e| format!("Failed to spawn claude ({}): {}", claude_bin, e))?;
 
         // Store PID so stop_agent can kill it
         let pid = child.id();
