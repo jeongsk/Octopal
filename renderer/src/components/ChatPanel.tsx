@@ -105,6 +105,9 @@ function TokenUsageBadge({ usage }: { usage: TokenUsage }) {
     <div className="token-usage-badge">
       <div className="token-usage-summary" onClick={() => setExpanded(e => !e)}>
         <Zap size={12} />
+        {usage.model && (
+          <span className="token-usage-model-inline">{usage.model}</span>
+        )}
         <span className="token-usage-total">{formatTokenCount(totalTokens)} tokens</span>
         {usage.costUsd != null && (
           <span className="token-usage-cost">{formatCost(usage.costUsd)}</span>

@@ -2944,6 +2944,20 @@ button {
   white-space: nowrap;
 }
 
+.token-usage-model-inline {
+  font-size: 10px;
+  opacity: 0.6;
+  font-weight: 500;
+  color: var(--accent, #7c6af7);
+  background: color-mix(in srgb, var(--accent, #7c6af7) 12%, transparent);
+  padding: 1px 5px;
+  border-radius: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 120px;
+}
+
 /* ── Pasted Text — Composer Card ── */
 .attachment-thumb.pasted-text {
   width: 220px;

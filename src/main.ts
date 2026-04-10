@@ -1316,14 +1316,12 @@ ipcMain.handle('dispatcher:route', async (_event, params: {
 
   console.log(`[RuleRouter] confidence ${ruleResult.confidence} < ${CONFIDENCE_THRESHOLD}, falling through to LLM router`)
 
-  // ── Layer 1: SmartObserver forceRefresh (ensure fresh context) ──
+  // ── Layer 1: SmartObserver refresh (non-blocking, use cached context) ──
   if (params.folderPath) {
-    try {
-      await smartObserver.forceRefresh(params.folderPath)
-      console.log('[SmartObserver] forceRefresh completed for LLM router')
-    } catch (err) {
-      console.warn('[SmartObserver] forceRefresh failed, using stale/rule context:', err)
-    }
+    // Fire-and-forget: refresh in background so next request has fresh data
+    smartObserver.forceRefresh(params.folderPath).catch((err) => {
+      console.warn('[SmartObserver] background refresh failed:', err)
+    })
   }
 
   // ── Layer 2: LLM Router (fallback) ──
