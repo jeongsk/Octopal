@@ -345,6 +345,14 @@ app.whenReady().then(() => {
     app.dock.setMenu(dockMenu)
   }
 
+  // Apply saved observer model on startup
+  try {
+    const initialSettings = loadSettings()
+    if (initialSettings.advanced?.observerModel) {
+      smartObserver.model = initialSettings.advanced.observerModel
+    }
+  } catch {}
+
   createWindow()
 
   app.on('activate', () => {
@@ -1147,6 +1155,7 @@ When in doubt between handoff and approval, prefer "approval" — the human can 
   try {
     const claudeArgs = [
       '-p', '--print',
+      '--model', 'haiku',
       '--mcp-config', '{"mcpServers":{}}',
       '--strict-mcp-config',
       '--system-prompt', systemPrompt,
@@ -1247,6 +1256,25 @@ ipcMain.handle('smartObserver:setEnabled', async (_event, params: {
   return { ok: true }
 })
 
+ipcMain.handle('smartObserver:setModel', async (_event, params: {
+  model: string
+}) => {
+  const allowed = ['haiku', 'sonnet', 'opus']
+  if (!allowed.includes(params.model)) {
+    return { ok: false, error: `Invalid model. Allowed: ${allowed.join(', ')}` }
+  }
+  smartObserver.model = params.model
+  return { ok: true, model: params.model }
+})
+
+ipcMain.handle('smartObserver:getModel', async () => {
+  return { ok: true, model: smartObserver.model }
+})
+
+ipcMain.handle('smartObserver:getMetrics', async () => {
+  return { ok: true, metrics: smartObserver.getMetrics() }
+})
+
 // ── Dispatcher (Router) ───────────────────────────────────────
 
 ipcMain.handle('dispatcher:route', async (_event, params: {
@@ -1255,7 +1283,7 @@ ipcMain.handle('dispatcher:route', async (_event, params: {
   recentHistory: Array<{ agentName: string; text: string }>
   folderPath?: string
 }): Promise<
-  | { ok: true; leader: string; collaborators: string[] }
+  | { ok: true; leader: string; collaborators: string[]; model?: 'haiku' | 'sonnet' | 'opus' }
   | { ok: false; error: string }
 > => {
   const { message, agents, recentHistory } = params
@@ -1316,7 +1344,7 @@ Available agents:
 ${agentList}${historyText}${observerSection}
 
 Output format — reply with ONLY a JSON object, nothing else:
-{"leader": "<name>", "collaborators": ["<name>", ...]}
+{"leader": "<name>", "collaborators": ["<name>", ...], "model": "haiku" | "sonnet" | "opus"}
 
 Rules for choosing the leader:
 - The leader is the ONE agent who will start the response. If the task requires concrete action (writing files, running commands, implementing something), the leader should be the agent whose role matches that action. When in doubt, the implementer leads.
@@ -1330,12 +1358,19 @@ Rules for collaborators:
 - For tasks that modify the same file or resource, keep collaborators empty — the leader should handle it alone to avoid conflicts.
 - Collaborators can be mentioned by the leader using @name during their response; they will then be invoked automatically.
 
+Also decide the appropriate model tier for the responding agent:
+- "haiku": simple tasks — greetings, short answers, formatting, translations, follow-up questions, simple code edits
+- "sonnet": moderate tasks — code implementation, debugging, multi-step analysis, refactoring, test writing
+- "opus": complex tasks — architecture design, security audit, complex debugging across multiple files, nuanced reasoning
+Default to "haiku" unless the task clearly needs more.
+
 Never include agents not in the list. The leader field is required.`
 
   try {
     const claudeArgs = [
       '-p',
       '--print',
+      '--model', 'haiku',
       '--mcp-config',
       '{"mcpServers":{}}',
       '--strict-mcp-config',
@@ -1388,7 +1423,11 @@ Never include agents not in the list. The leader field is required.`
                   .map((n: any) => (typeof n === 'string' ? resolveName(n) : null))
                   .filter((n: string | null): n is string => !!n && n !== leader)
               : []
-            return { ok: true, leader, collaborators }
+            const allowedModels = ['haiku', 'sonnet', 'opus']
+            const model = typeof parsed.model === 'string' && allowedModels.includes(parsed.model)
+              ? parsed.model as 'haiku' | 'sonnet' | 'opus'
+              : 'haiku'
+            return { ok: true, leader, collaborators, model }
           }
         }
       } catch {}
@@ -1427,8 +1466,9 @@ ipcMain.handle('octo:sendMessage', async (_event, params: {
   isLeader?: boolean
   imagePaths?: string[]
   textPaths?: string[]
+  model?: 'haiku' | 'sonnet' | 'opus'
 }) => {
-  const { folderPath, octoPath, prompt, userTs, runId, peers, collaborators, isLeader, imagePaths, textPaths } = params
+  const { folderPath, octoPath, prompt, userTs, runId, peers, collaborators, isLeader, imagePaths, textPaths, model } = params
 
   const sendActivity = (text: string) => {
     broadcastToWindows('octo:activity', { runId, text })
@@ -1552,6 +1592,16 @@ How to collaborate (very important):
       '--verbose',
       '--output-format', 'stream-json',
     ]
+
+    // Apply model selection: use dispatcher-recommended model, settings default, or CLI default
+    const currentSettings = loadSettings()
+    const autoModel = currentSettings.advanced?.autoModelSelection !== false // default true
+    const allowedModels = ['haiku', 'sonnet', 'opus']
+    if (autoModel && model && allowedModels.includes(model)) {
+      claudeArgs.push('--model', model)
+    } else if (!autoModel && currentSettings.advanced?.defaultAgentModel && allowedModels.includes(currentSettings.advanced.defaultAgentModel)) {
+      claudeArgs.push('--model', currentSettings.advanced.defaultAgentModel)
+    }
 
     // Give the agent access to the workspace wiki directory in addition to
     // its own folder. Without this, Read/Write tools can't touch the wiki
@@ -1831,6 +1881,7 @@ Reply with ONLY a JSON object, nothing else:
     const claudeArgs = [
       '-p',
       '--print',
+      '--model', 'haiku',
       '--mcp-config',
       '{"mcpServers":{}}',
       '--strict-mcp-config',
@@ -2059,6 +2110,11 @@ interface AppSettings {
   shortcuts: {
     textExpansions: TextShortcut[]
   }
+  advanced: {
+    observerModel: 'haiku' | 'sonnet' | 'opus'
+    defaultAgentModel: 'haiku' | 'sonnet' | 'opus'
+    autoModelSelection: boolean
+  }
 }
 
 const SETTINGS_FILE = path.join(STATE_DIR, 'settings.json')
@@ -2082,6 +2138,11 @@ const DEFAULT_SETTINGS: AppSettings = {
   shortcuts: {
     textExpansions: [],
   },
+  advanced: {
+    observerModel: 'haiku',
+    defaultAgentModel: 'sonnet',
+    autoModelSelection: true,
+  },
 }
 
 function loadSettings(): AppSettings {
@@ -2102,6 +2163,7 @@ function loadSettings(): AppSettings {
           ...raw.shortcuts,
           textExpansions: raw.shortcuts?.textExpansions || [],
         },
+        advanced: { ...DEFAULT_SETTINGS.advanced, ...raw.advanced },
       }
     }
   } catch {}
@@ -2121,6 +2183,12 @@ ipcMain.handle('settings:save', (_event, settings: AppSettings) => {
   // Apply launch-at-login setting
   if (app.isPackaged) {
     app.setLoginItemSettings({ openAtLogin: settings.general.launchAtLogin })
+  }
+
+  // Apply observer model setting
+  const allowed = ['haiku', 'sonnet', 'opus']
+  if (settings.advanced?.observerModel && allowed.includes(settings.advanced.observerModel)) {
+    smartObserver.model = settings.advanced.observerModel
   }
 
   return { ok: true }

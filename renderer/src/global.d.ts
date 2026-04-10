@@ -51,6 +51,18 @@ interface TextShortcut {
   description?: string
 }
 
+interface ObserverMetrics {
+  totalCalls: number
+  successes: number
+  parseFailures: number
+  validationFailures: number
+  timeouts: number
+  errors: number
+  avgLatencyMs: number
+  lastSuccessAt: number | null
+  lastFailureReason: string | null
+}
+
 interface AppSettings {
   general: {
     restoreLastWorkspace: boolean
@@ -69,6 +81,11 @@ interface AppSettings {
   }
   shortcuts: {
     textExpansions: TextShortcut[]
+  }
+  advanced: {
+    observerModel: 'haiku' | 'sonnet' | 'opus'
+    defaultAgentModel: 'haiku' | 'sonnet' | 'opus'
+    autoModelSelection: boolean
   }
 }
 
@@ -113,6 +130,7 @@ interface Window {
       isLeader?: boolean
       imagePaths?: string[]
       textPaths?: string[]
+      model?: 'haiku' | 'sonnet' | 'opus'
     }) => Promise<{ ok: true; output: string } | { ok: false; error: string }>
     onActivity: (cb: (data: { runId: string; text: string }) => void) => () => void
     onActivityLog: (
@@ -144,7 +162,7 @@ interface Window {
       recentHistory: Array<{ agentName: string; text: string }>
       folderPath?: string
     }) => Promise<
-      | { ok: true; leader: string; collaborators: string[] }
+      | { ok: true; leader: string; collaborators: string[]; model?: 'haiku' | 'sonnet' | 'opus' }
       | { ok: false; error: string }
     >
 
@@ -212,6 +230,12 @@ interface Window {
       | { ok: false; error: string }
     >
     smartObserverSetEnabled: (enabled: boolean) => Promise<{ ok: true }>
+    smartObserverSetModel: (model: string) => Promise<
+      | { ok: true; model: string }
+      | { ok: false; error: string }
+    >
+    smartObserverGetModel: () => Promise<{ ok: true; model: string }>
+    smartObserverGetMetrics: () => Promise<{ ok: true; metrics: ObserverMetrics }>
 
     classifyMention: (params: {
       speakerName: string

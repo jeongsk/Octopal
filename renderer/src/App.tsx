@@ -687,6 +687,7 @@ export function App() {
     const allMentions = bufferedMessages.flatMap((m) => parseMentions(m.text))
     let leader: OctoFile | null = null
     let collaborators: OctoFile[] = []
+    let dispatcherModel: 'haiku' | 'sonnet' | 'opus' | undefined
 
     if (allMentions.length > 0) {
       const isAll = allMentions.includes('all')
@@ -741,6 +742,7 @@ export function App() {
           if (leaderMatch) {
             leader = leaderMatch
             collaborators = octos.filter((r) => res.collaborators.includes(r.name))
+            dispatcherModel = res.model
           }
         }
       }
@@ -749,7 +751,7 @@ export function App() {
     if (!leader) return
 
     const called = new Set<string>([leader.name.toLowerCase()])
-    invokeAgent(leader, combinedText, userTs, 0, called, collaborators, allAttachments)
+    invokeAgent(leader, combinedText, userTs, 0, called, collaborators, allAttachments, dispatcherModel)
   }
 
   // No hard depth limit — the alreadyCalled set prevents cycles naturally.
@@ -762,7 +764,8 @@ export function App() {
     depth: number,
     alreadyCalled: Set<string>,
     collaborators: OctoFile[] = [],
-    attachments: Attachment[] = []
+    attachments: Attachment[] = [],
+    model?: 'haiku' | 'sonnet' | 'opus'
   ) => {
     if (!activeFolder) return
     const folderPathAtStart = activeFolder
@@ -854,6 +857,7 @@ export function App() {
         isLeader,
         imagePaths: imagePaths.length > 0 ? imagePaths : undefined,
         textPaths: textPaths.length > 0 ? textPaths : undefined,
+        model,
       })
     } catch (err) {
       res = { ok: false, output: '', error: String(err) }

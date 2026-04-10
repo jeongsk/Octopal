@@ -20,6 +20,7 @@
       "agents": "Agents",
       "appearance": "Appearance",
       "shortcuts": "Shortcuts",
+      "advanced": "Advanced",
       "about": "About"
     },
     "general": {
@@ -77,6 +78,32 @@
       "suggestionsTitle": "Suggested shortcuts",
       "suggestionsDesc": "Quick-add common shortcuts based on your agents:",
       "addSuggestion": "Add"
+    },
+    "advanced": {
+      "title": "Advanced",
+      "observerModel": "Observer AI Model",
+      "observerModelDesc": "The AI model used for conversation state tracking and message routing. Haiku is fast and cheap, Sonnet is more accurate.",
+      "autoModelSelection": "Adaptive Model Selection",
+      "autoModelSelectionDesc": "Automatically choose the optimal AI model based on task complexity. When off, all agents use the default model.",
+      "defaultAgentModel": "Default Agent Model",
+      "defaultAgentModelDesc": "Fixed model for all agent responses when adaptive selection is disabled.",
+      "modelHaiku": "Haiku (fast, low cost)",
+      "modelSonnet": "Sonnet (balanced)",
+      "modelOpus": "Opus (highest quality)",
+      "metricsTitle": "Observer Metrics",
+      "metricsDesc": "Real-time quality metrics for the SmartObserver LLM calls.",
+      "metricsCalls": "Total calls",
+      "metricsSuccesses": "Successes",
+      "metricsParseFailures": "Parse failures",
+      "metricsValidationFailures": "Validation failures",
+      "metricsTimeouts": "Timeouts",
+      "metricsErrors": "Errors",
+      "metricsAvgLatency": "Avg latency",
+      "metricsLastSuccess": "Last success",
+      "metricsLastFailure": "Last failure reason",
+      "metricsNone": "No data yet",
+      "metricsNever": "Never",
+      "metricsSuccessRate": "Success rate"
     },
     "about": {
       "title": "About Octopal",
@@ -169,7 +196,10 @@
     },
     "editAgent": {
       "title": "Edit agent",
-      "deleteConfirm": "Delete {{name}}? This removes the .octo file permanently."
+      "deleteConfirm": "Delete {{name}}? This removes the .octo file permanently.",
+      "tabBasic": "Basic",
+      "tabPermissions": "Permissions",
+      "tabMcp": "MCP"
     },
     "createWorkspace": {
       "title": "New workspace",

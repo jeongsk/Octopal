@@ -48,6 +48,7 @@ contextBridge.exposeInMainWorld('api', {
     isLeader?: boolean
     imagePaths?: string[]
     textPaths?: string[]
+    model?: 'haiku' | 'sonnet' | 'opus'
   }) => ipcRenderer.invoke('octo:sendMessage', params),
   onActivity: (cb: (data: { runId: string; text: string }) => void) => {
     const handler = (_event: any, data: { runId: string; text: string }) => cb(data)
@@ -109,6 +110,12 @@ contextBridge.exposeInMainWorld('api', {
     ipcRenderer.invoke('smartObserver:forceRefresh', { folderPath }),
   smartObserverSetEnabled: (enabled: boolean) =>
     ipcRenderer.invoke('smartObserver:setEnabled', { enabled }),
+  smartObserverSetModel: (model: string) =>
+    ipcRenderer.invoke('smartObserver:setModel', { model }),
+  smartObserverGetModel: () =>
+    ipcRenderer.invoke('smartObserver:getModel'),
+  smartObserverGetMetrics: () =>
+    ipcRenderer.invoke('smartObserver:getMetrics'),
   classifyMention: (params: {
     speakerName: string
     speakerText: string

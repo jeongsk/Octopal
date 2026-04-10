@@ -62,6 +62,29 @@ export interface ObserverMessage {
   mentions?: string[]
 }
 
+// ── Types — Quality metrics ─────────────────────────────────
+
+export interface ObserverMetrics {
+  /** Total LLM calls attempted */
+  totalCalls: number
+  /** Successful calls that produced valid context */
+  successes: number
+  /** Calls that returned but output failed JSON parsing */
+  parseFailures: number
+  /** Calls that returned JSON but failed quality validation */
+  validationFailures: number
+  /** Calls that timed out */
+  timeouts: number
+  /** Calls that errored (non-timeout) */
+  errors: number
+  /** Average latency of successful calls (ms) */
+  avgLatencyMs: number
+  /** Last successful call timestamp */
+  lastSuccessAt: number | null
+  /** Last failure reason */
+  lastFailureReason: string | null
+}
+
 // ── Constants ────────────────────────────────────────────────
 
 /** How many pending messages before triggering an LLM refresh */
@@ -69,9 +92,23 @@ const REFRESH_MESSAGE_THRESHOLD = 3
 /** Inactivity duration (ms) that triggers a refresh on resume */
 const INACTIVITY_THRESHOLD_MS = 5 * 60 * 1000
 /** Timeout for the CLI call (ms) */
-const CLI_TIMEOUT_MS = 15_000
+const CLI_TIMEOUT_MS = 25_000
 /** Max messages to send to the LLM (to keep token usage low) */
 const MAX_MESSAGES_FOR_LLM = 10
+/** Max concurrent CLI processes globally */
+const MAX_CONCURRENT_CLI = 2
+/** Max consecutive failures before circuit breaker trips */
+const CIRCUIT_BREAKER_THRESHOLD = 3
+/** Circuit breaker cooldown duration (ms) — 5 minutes */
+const CIRCUIT_BREAKER_COOLDOWN_MS = 5 * 60 * 1000
+/** Base backoff duration (ms) for exponential backoff */
+const BACKOFF_BASE_MS = 30_000
+/** Default model for CLI calls — Haiku is fast & cheap enough for structured summarisation */
+const DEFAULT_CLI_MODEL = 'haiku'
+/** Required fields that must be non-empty strings for valid LLM output */
+const REQUIRED_LLM_FIELDS: (keyof LLMContext)[] = [
+  'conversationSummary', 'currentTopic', 'conversationPhase', 'userIntent',
+]
 
 // ── Observer system prompt ───────────────────────────────────
 
@@ -115,8 +152,30 @@ export class SmartObserver {
   private pendingMessages = new Map<string, ObserverMessage[]>()
   /** Whether a refresh is currently in-flight for a folder */
   private refreshInFlight = new Set<string>()
+  /** Global count of active CLI processes */
+  private activeCLICount: number = 0
+  /** Consecutive failure count per folder */
+  private failCounts = new Map<string, number>()
+  /** Backoff cooldown end timestamp per folder (epoch ms) */
+  private cooldownUntil = new Map<string, number>()
   /** Whether the observer is enabled (can be disabled for testing or cost control) */
   private _enabled: boolean = true
+  /** Which Claude model to use for CLI calls */
+  private _model: string = DEFAULT_CLI_MODEL
+  /** Quality metrics */
+  private _metrics: ObserverMetrics = {
+    totalCalls: 0,
+    successes: 0,
+    parseFailures: 0,
+    validationFailures: 0,
+    timeouts: 0,
+    errors: 0,
+    avgLatencyMs: 0,
+    lastSuccessAt: null,
+    lastFailureReason: null,
+  }
+  /** Latency samples for averaging */
+  private _latencySamples: number[] = []
 
   constructor(ruleObserver?: ConversationObserver) {
     this.ruleObserver = ruleObserver || new ConversationObserver()
@@ -125,6 +184,10 @@ export class SmartObserver {
   /** Enable/disable LLM calls (rule-based tracking always runs) */
   get enabled(): boolean { return this._enabled }
   set enabled(val: boolean) { this._enabled = val }
+
+  /** Get/set the CLI model (e.g. 'haiku', 'sonnet') */
+  get model(): string { return this._model }
+  set model(val: string) { this._model = val }
 
   // ── Public API ─────────────────────────────────────────────
 
@@ -145,9 +208,9 @@ export class SmartObserver {
 
     // 3. Check if LLM refresh needed
     if (this._enabled && this.shouldRefreshLLM(folderPath)) {
-      // Fire-and-forget (background), but return true so caller knows
-      this.refreshLLMContext(folderPath).catch((err) => {
-        console.error(`[SmartObserver] LLM refresh failed for ${folderPath}:`, err)
+      // Fire-and-forget (background) — errors are already logged in refreshLLMContext
+      this.refreshLLMContext(folderPath).catch(() => {
+        // Error already logged with backoff info in refreshLLMContext
       })
       return true
     }
@@ -183,8 +246,8 @@ export class SmartObserver {
 
     // Wait for any in-flight refresh to complete (must exceed CLI_TIMEOUT_MS)
     if (this.refreshInFlight.has(folderPath)) {
-      // Poll — max 35 attempts × 500ms = 17.5s (> CLI_TIMEOUT_MS of 15s)
-      for (let i = 0; i < 35; i++) {
+      // Poll — max 55 attempts × 500ms = 27.5s (> CLI_TIMEOUT_MS of 25s)
+      for (let i = 0; i < 55; i++) {
         await sleep(500)
         if (!this.refreshInFlight.has(folderPath)) break
       }
@@ -253,6 +316,8 @@ export class SmartObserver {
     this.llmContexts.delete(folderPath)
     this.pendingMessages.delete(folderPath)
     this.refreshInFlight.delete(folderPath)
+    this.failCounts.delete(folderPath)
+    this.cooldownUntil.delete(folderPath)
   }
 
   /** Get the number of pending messages (for testing / monitoring) */
@@ -265,11 +330,40 @@ export class SmartObserver {
     return this.refreshInFlight.has(folderPath)
   }
 
+  /** Get quality metrics for monitoring */
+  getMetrics(): ObserverMetrics {
+    return { ...this._metrics }
+  }
+
+  /** Reset metrics (for testing) */
+  resetMetrics(): void {
+    this._metrics = {
+      totalCalls: 0, successes: 0, parseFailures: 0, validationFailures: 0,
+      timeouts: 0, errors: 0, avgLatencyMs: 0, lastSuccessAt: null, lastFailureReason: null,
+    }
+    this._latencySamples = []
+  }
+
   // ── Internal logic ─────────────────────────────────────────
 
   /** Determine if an LLM refresh should be triggered */
   shouldRefreshLLM(folderPath: string): boolean {
+    // Already refreshing this folder
     if (this.refreshInFlight.has(folderPath)) return false
+
+    // Global concurrency limit
+    if (this.activeCLICount >= MAX_CONCURRENT_CLI) {
+      console.log(`[SmartObserver] Skipping refresh for ${folderPath}: global CLI limit reached (${this.activeCLICount}/${MAX_CONCURRENT_CLI})`)
+      return false
+    }
+
+    // Circuit breaker / cooldown check
+    const cooldown = this.cooldownUntil.get(folderPath)
+    if (cooldown && Date.now() < cooldown) {
+      const remainSec = Math.ceil((cooldown - Date.now()) / 1000)
+      console.log(`[SmartObserver] Skipping refresh for ${folderPath}: in cooldown (${remainSec}s remaining)`)
+      return false
+    }
 
     const pending = this.pendingMessages.get(folderPath) || []
 
@@ -297,14 +391,69 @@ export class SmartObserver {
     if (pending.length === 0) return
 
     this.refreshInFlight.add(folderPath)
+    this.activeCLICount++
+    this._metrics.totalCalls++
+    const startTime = Date.now()
+
     try {
       const currentLLM = this.llmContexts.get(folderPath) ?? null
       const updated = await this.callLLM(currentLLM, pending.slice(-MAX_MESSAGES_FOR_LLM))
       if (updated) {
         this.llmContexts.set(folderPath, updated)
+        // Track success metrics
+        this._metrics.successes++
+        this._metrics.lastSuccessAt = Date.now()
+        const latency = Date.now() - startTime
+        this._latencySamples.push(latency)
+        // Keep only last 50 samples for rolling average
+        if (this._latencySamples.length > 50) this._latencySamples.shift()
+        this._metrics.avgLatencyMs = Math.round(
+          this._latencySamples.reduce((a, b) => a + b, 0) / this._latencySamples.length
+        )
+      } else {
+        // parseLLMOutput returned null — already tracked as parseFailure or validationFailure
       }
       this.pendingMessages.set(folderPath, [])
+      // Success — reset failure tracking
+      this.failCounts.delete(folderPath)
+      this.cooldownUntil.delete(folderPath)
+    } catch (err) {
+      // Categorize error for metrics
+      const errMsg = err instanceof Error ? err.message : String(err)
+      if (errMsg.includes('timeout')) {
+        this._metrics.timeouts++
+      } else {
+        this._metrics.errors++
+      }
+      this._metrics.lastFailureReason = errMsg.slice(0, 200)
+
+      // Track consecutive failures and apply exponential backoff
+      const prevFails = this.failCounts.get(folderPath) || 0
+      const newFails = prevFails + 1
+      this.failCounts.set(folderPath, newFails)
+
+      if (newFails >= CIRCUIT_BREAKER_THRESHOLD) {
+        // Circuit breaker: 5-minute cooldown
+        this.cooldownUntil.set(folderPath, Date.now() + CIRCUIT_BREAKER_COOLDOWN_MS)
+        console.error(
+          `[SmartObserver] Circuit breaker tripped for ${folderPath}: ` +
+          `${newFails} consecutive failures. Pausing for ${CIRCUIT_BREAKER_COOLDOWN_MS / 1000}s. ` +
+          `Active CLI: ${this.activeCLICount - 1}/${MAX_CONCURRENT_CLI}`
+        )
+      } else {
+        // Exponential backoff: 30s, 60s, ...
+        const backoffMs = BACKOFF_BASE_MS * Math.pow(2, newFails - 1)
+        this.cooldownUntil.set(folderPath, Date.now() + backoffMs)
+        console.error(
+          `[SmartObserver] LLM refresh failed for ${folderPath} (attempt ${newFails}): ` +
+          `${sanitizeError(err, true)}. Backoff ${backoffMs / 1000}s. ` +
+          `Active CLI: ${this.activeCLICount - 1}/${MAX_CONCURRENT_CLI}`
+        )
+      }
+      // Re-throw so callers (like forceRefresh) can handle
+      throw err
     } finally {
+      this.activeCLICount--
       this.refreshInFlight.delete(folderPath)
     }
   }
@@ -327,6 +476,7 @@ export class SmartObserver {
     const claudeArgs = [
       '-p',
       '--print',
+      '--model', this._model,
       '--mcp-config', '{"mcpServers":{}}',
       '--strict-mcp-config',
       '--system-prompt', OBSERVER_SYSTEM_PROMPT,
@@ -344,7 +494,7 @@ export class SmartObserver {
       let stderr = ''
       const timer = setTimeout(() => {
         child.kill('SIGTERM')
-        reject(new Error('SmartObserver CLI timeout'))
+        reject(new Error(`SmartObserver CLI timeout (${CLI_TIMEOUT_MS / 1000}s, active: ${this.activeCLICount}/${MAX_CONCURRENT_CLI})`))
       }, CLI_TIMEOUT_MS)
 
       child.stdout.on('data', (d) => { stdout += d.toString() })
@@ -363,31 +513,64 @@ export class SmartObserver {
     return this.parseLLMOutput(output)
   }
 
-  /** Parse the LLM JSON output into LLMContext, with fallback */
+  /** Parse the LLM JSON output into LLMContext, with quality validation */
   private parseLLMOutput(output: string): LLMContext | null {
     const jsonMatch = output.match(/\{[\s\S]*\}/)
-    if (!jsonMatch) return null
-
-    try {
-      const parsed = JSON.parse(jsonMatch[0])
-
-      return {
-        conversationSummary: String(parsed.conversationSummary || ''),
-        currentTopic: String(parsed.currentTopic || ''),
-        topicHistory: Array.isArray(parsed.topicHistory)
-          ? parsed.topicHistory.map(String).slice(0, 5)
-          : [],
-        conversationPhase: String(parsed.conversationPhase || 'discussion'),
-        agentContext: this.parseAgentContext(parsed.agentContext),
-        userIntent: String(parsed.userIntent || ''),
-        openThreads: Array.isArray(parsed.openThreads)
-          ? parsed.openThreads.map(String).slice(0, 5)
-          : [],
-        updatedAt: Date.now(),
-      }
-    } catch {
-      console.error('[SmartObserver] Failed to parse LLM output:', output.slice(0, 200))
+    if (!jsonMatch) {
+      this._metrics.parseFailures++
+      this._metrics.lastFailureReason = 'No JSON object found in output'
+      console.error('[SmartObserver] No JSON in output:', output.slice(0, 200))
       return null
+    }
+
+    let parsed: any
+    try {
+      parsed = JSON.parse(jsonMatch[0])
+    } catch {
+      this._metrics.parseFailures++
+      this._metrics.lastFailureReason = 'Invalid JSON syntax'
+      console.error('[SmartObserver] Failed to parse LLM JSON:', output.slice(0, 200))
+      return null
+    }
+
+    // ── Quality validation: required fields must be non-empty ──
+    const missingFields: string[] = []
+    for (const field of REQUIRED_LLM_FIELDS) {
+      const val = parsed[field]
+      if (!val || (typeof val === 'string' && val.trim().length === 0)) {
+        missingFields.push(field)
+      }
+    }
+
+    if (missingFields.length > 0) {
+      this._metrics.validationFailures++
+      this._metrics.lastFailureReason = `Missing/empty fields: ${missingFields.join(', ')}`
+      console.warn(
+        `[SmartObserver] Quality validation failed (model: ${this._model}): ` +
+        `missing fields: ${missingFields.join(', ')}. ` +
+        `Output: ${output.slice(0, 200)}`
+      )
+      // Still use partial output — fill defaults for missing fields
+    }
+
+    // Validate conversationPhase is a known value
+    const validPhases = ['idle', 'planning', 'implementation', 'review', 'discussion', 'debugging']
+    const rawPhase = String(parsed.conversationPhase || 'discussion').toLowerCase()
+    const phase = validPhases.includes(rawPhase) ? rawPhase : 'discussion'
+
+    return {
+      conversationSummary: String(parsed.conversationSummary || ''),
+      currentTopic: String(parsed.currentTopic || ''),
+      topicHistory: Array.isArray(parsed.topicHistory)
+        ? parsed.topicHistory.map(String).slice(0, 5)
+        : [],
+      conversationPhase: phase,
+      agentContext: this.parseAgentContext(parsed.agentContext),
+      userIntent: String(parsed.userIntent || ''),
+      openThreads: Array.isArray(parsed.openThreads)
+        ? parsed.openThreads.map(String).slice(0, 5)
+        : [],
+      updatedAt: Date.now(),
     }
   }
 

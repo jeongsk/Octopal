@@ -681,6 +681,47 @@ button {
   width: 480px;
 }
 
+/* ── Agent modal tabs ── */
+.agent-modal-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 16px;
+}
+
+.agent-modal-tab {
+  flex: 1;
+  padding: 8px 0;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  color: var(--text-secondary);
+  font-size: var(--font-sm);
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: color var(--transition), border-color var(--transition);
+}
+
+.agent-modal-tab:hover {
+  color: var(--text-heading);
+}
+
+.agent-modal-tab:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+}
+
+.agent-modal-tab.active {
+  color: var(--text-heading);
+  border-bottom-color: var(--accent);
+}
+
+.agent-modal-tab-content {
+  min-height: 180px;
+}
+
 /* ── Permissions ── */
 .perm-row {
   display: flex;
@@ -3761,6 +3802,105 @@ button {
   font-size: 12px;
   color: var(--text-dim);
   margin: 0;
+}
+
+/* ── Advanced tab: Observer Metrics ── */
+.observer-metrics {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.metrics-success-rate {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.metrics-success-rate .settings-label {
+  flex-shrink: 0;
+  width: 80px;
+  font-size: 12px;
+}
+
+.metrics-bar {
+  flex: 1;
+  height: 8px;
+  background: var(--bg-deep);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.metrics-bar-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.metrics-bar-label {
+  flex-shrink: 0;
+  width: 40px;
+  text-align: right;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.metrics-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.metrics-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: var(--bg-deep);
+  border-radius: 6px;
+}
+
+.metrics-label {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.metrics-value {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.metrics-value--success {
+  color: #4ade80;
+}
+
+.metrics-value--warn {
+  color: #fbbf24;
+}
+
+.metrics-value--error {
+  color: #f87171;
+}
+
+.metrics-failure-reason {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  background: rgba(248, 113, 113, 0.08);
+  border-radius: 6px;
+  border: 1px solid rgba(248, 113, 113, 0.2);
+}
+
+.metrics-failure-text {
+  font-size: 12px;
+  color: var(--text-secondary);
+  word-break: break-all;
+  font-family: var(--font-mono, monospace);
 }
 
 /* Save bar */

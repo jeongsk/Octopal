@@ -4,6 +4,8 @@ import { EmojiPicker } from '../EmojiPicker'
 import { AlertTriangle } from 'lucide-react'
 import { McpValidationModal } from './McpValidationModal'
 
+type AgentTab = 'basic' | 'permissions' | 'mcp'
+
 interface CreateAgentModalProps {
   folderPath: string
   onClose: () => void
@@ -12,6 +14,7 @@ interface CreateAgentModalProps {
 
 export function CreateAgentModal({ folderPath, onClose, onCreated }: CreateAgentModalProps) {
   const { t } = useTranslation()
+  const [tab, setTab] = useState<AgentTab>('basic')
   const [name, setName] = useState('')
   const [role, setRole] = useState('')
   const [icon, setIcon] = useState('')
@@ -53,6 +56,7 @@ export function CreateAgentModal({ folderPath, onClose, onCreated }: CreateAgent
         mcpServers = JSON.parse(mcpJson.trim())
       } catch {
         setMcpError(t('mcp.jsonError'))
+        setTab('mcp')
         return
       }
     }
@@ -119,96 +123,128 @@ export function CreateAgentModal({ folderPath, onClose, onCreated }: CreateAgent
     )
   }
 
+  const tabs: { id: AgentTab; label: string }[] = [
+    { id: 'basic', label: t('modals.editAgent.tabBasic') },
+    { id: 'permissions', label: t('modals.editAgent.tabPermissions') },
+    { id: 'mcp', label: t('modals.editAgent.tabMcp') },
+  ]
+
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal modal-wide" onClick={(e) => e.stopPropagation()}>
         <div className="modal-title">{t('modals.createAgent.title')}</div>
 
-        <EmojiPicker
-          value={icon}
-          onChange={setIcon}
-          name={name || '?'}
-          color={color || undefined}
-          onColorChange={setColor}
-        />
-
-        <label className="modal-label">{t('label.name')}</label>
-        <input
-          className="modal-input"
-          placeholder={t('modals.createAgent.namePlaceholder')}
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          autoFocus
-        />
-
-        <label className="modal-label">{t('label.role')}</label>
-        <textarea
-          className="modal-textarea"
-          placeholder={t('modals.createAgent.rolePlaceholder')}
-          value={role}
-          onChange={(e) => setRole(e.target.value)}
-        />
-
-        <label className="modal-label">{t('modals.createAgent.permissions')}</label>
-        <div className="modal-hint" style={{ marginTop: 0 }}>
-          {t('modals.createAgent.permissionsHint')}
-        </div>
-        <div className="perm-row">
-          <label className="perm-toggle">
-            <input
-              type="checkbox"
-              checked={fileWrite}
-              onChange={(e) => setFileWrite(e.target.checked)}
-            />
-            <span>{t('modals.createAgent.permFileWrite')}</span>
-          </label>
-          <label className="perm-toggle">
-            <input
-              type="checkbox"
-              checked={bash}
-              onChange={(e) => setBash(e.target.checked)}
-            />
-            <span>{t('modals.createAgent.permShell')}</span>
-          </label>
-          <label className="perm-toggle">
-            <input
-              type="checkbox"
-              checked={network}
-              onChange={(e) => setNetwork(e.target.checked)}
-            />
-            <span>{t('modals.createAgent.permNetwork')}</span>
-          </label>
+        <div className="agent-modal-tabs">
+          {tabs.map((tb) => (
+            <button
+              key={tb.id}
+              className={`agent-modal-tab ${tab === tb.id ? 'active' : ''}`}
+              onClick={() => setTab(tb.id)}
+            >
+              {tb.label}
+            </button>
+          ))}
         </div>
 
-        <label className="modal-label">{t('modals.createAgent.allowPaths')}</label>
-        <input
-          className="modal-input"
-          placeholder={t('modals.createAgent.allowPathsPlaceholder')}
-          value={allowPaths}
-          onChange={(e) => setAllowPaths(e.target.value)}
-        />
+        <div className="agent-modal-tab-content">
+          {tab === 'basic' && (
+            <>
+              <EmojiPicker
+                value={icon}
+                onChange={setIcon}
+                name={name || '?'}
+                color={color || undefined}
+                onColorChange={setColor}
+              />
 
-        <label className="modal-label">{t('modals.createAgent.denyPaths')}</label>
-        <input
-          className="modal-input"
-          placeholder={t('modals.createAgent.denyPathsPlaceholder')}
-          value={denyPaths}
-          onChange={(e) => setDenyPaths(e.target.value)}
-        />
+              <label className="modal-label">{t('label.name')}</label>
+              <input
+                className="modal-input"
+                placeholder={t('modals.createAgent.namePlaceholder')}
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                autoFocus
+              />
 
-        <label className="modal-label">{t('mcp.title')}</label>
-        <div className="modal-hint" style={{ marginTop: 0 }}>
-          {t('mcp.hint')}
+              <label className="modal-label">{t('label.role')}</label>
+              <textarea
+                className="modal-textarea"
+                placeholder={t('modals.createAgent.rolePlaceholder')}
+                value={role}
+                onChange={(e) => setRole(e.target.value)}
+              />
+            </>
+          )}
+
+          {tab === 'permissions' && (
+            <>
+              <label className="modal-label" style={{ marginTop: 0 }}>{t('modals.createAgent.permissions')}</label>
+              <div className="modal-hint" style={{ marginTop: 0 }}>
+                {t('modals.createAgent.permissionsHint')}
+              </div>
+              <div className="perm-row">
+                <label className="perm-toggle">
+                  <input
+                    type="checkbox"
+                    checked={fileWrite}
+                    onChange={(e) => setFileWrite(e.target.checked)}
+                  />
+                  <span>{t('modals.createAgent.permFileWrite')}</span>
+                </label>
+                <label className="perm-toggle">
+                  <input
+                    type="checkbox"
+                    checked={bash}
+                    onChange={(e) => setBash(e.target.checked)}
+                  />
+                  <span>{t('modals.createAgent.permShell')}</span>
+                </label>
+                <label className="perm-toggle">
+                  <input
+                    type="checkbox"
+                    checked={network}
+                    onChange={(e) => setNetwork(e.target.checked)}
+                  />
+                  <span>{t('modals.createAgent.permNetwork')}</span>
+                </label>
+              </div>
+
+              <label className="modal-label">{t('modals.createAgent.allowPaths')}</label>
+              <input
+                className="modal-input"
+                placeholder={t('modals.createAgent.allowPathsPlaceholder')}
+                value={allowPaths}
+                onChange={(e) => setAllowPaths(e.target.value)}
+              />
+
+              <label className="modal-label">{t('modals.createAgent.denyPaths')}</label>
+              <input
+                className="modal-input"
+                placeholder={t('modals.createAgent.denyPathsPlaceholder')}
+                value={denyPaths}
+                onChange={(e) => setDenyPaths(e.target.value)}
+              />
+            </>
+          )}
+
+          {tab === 'mcp' && (
+            <>
+              <label className="modal-label" style={{ marginTop: 0 }}>{t('mcp.title')}</label>
+              <div className="modal-hint" style={{ marginTop: 0 }}>
+                {t('mcp.hint')}
+              </div>
+              <textarea
+                className="modal-textarea"
+                placeholder={t('mcp.placeholder')}
+                value={mcpJson}
+                onChange={(e) => { setMcpJson(e.target.value); setMcpError(null) }}
+                rows={8}
+                style={{ fontFamily: 'monospace', fontSize: 12 }}
+              />
+              {mcpError && <div className="modal-error">{mcpError}</div>}
+            </>
+          )}
         </div>
-        <textarea
-          className="modal-textarea"
-          placeholder={t('mcp.placeholder')}
-          value={mcpJson}
-          onChange={(e) => { setMcpJson(e.target.value); setMcpError(null) }}
-          rows={6}
-          style={{ fontFamily: 'monospace', fontSize: 12 }}
-        />
-        {mcpError && <div className="modal-error">{mcpError}</div>}
 
         {error && <div className="modal-error">{error}</div>}
 

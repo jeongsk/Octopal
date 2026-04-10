@@ -20,6 +20,7 @@
       "agents": "에이전트",
       "appearance": "외관",
       "shortcuts": "단축키",
+      "advanced": "고급",
       "about": "정보"
     },
     "general": {
@@ -77,6 +78,32 @@
       "suggestionsTitle": "추천 단축어",
       "suggestionsDesc": "에이전트 기반 추천 단축어를 빠르게 추가하세요:",
       "addSuggestion": "추가"
+    },
+    "advanced": {
+      "title": "고급 설정",
+      "observerModel": "Observer AI 모델",
+      "observerModelDesc": "대화 상태 추적 및 메시지 라우팅에 사용되는 AI 모델입니다. Haiku는 빠르고 저렴하며, Sonnet은 더 정확합니다.",
+      "autoModelSelection": "적응형 모델 선택",
+      "autoModelSelectionDesc": "작업 복잡도에 따라 최적의 AI 모델을 자동으로 선택합니다. 끄면 모든 에이전트가 기본 모델을 사용합니다.",
+      "defaultAgentModel": "기본 에이전트 모델",
+      "defaultAgentModelDesc": "적응형 선택이 비활성화된 경우 모든 에이전트 응답에 사용되는 고정 모델입니다.",
+      "modelHaiku": "Haiku (빠름, 저비용)",
+      "modelSonnet": "Sonnet (균형)",
+      "modelOpus": "Opus (최고 품질)",
+      "metricsTitle": "Observer 메트릭",
+      "metricsDesc": "SmartObserver LLM 호출의 실시간 품질 지표입니다.",
+      "metricsCalls": "총 호출",
+      "metricsSuccesses": "성공",
+      "metricsParseFailures": "파싱 실패",
+      "metricsValidationFailures": "검증 실패",
+      "metricsTimeouts": "타임아웃",
+      "metricsErrors": "오류",
+      "metricsAvgLatency": "평균 지연",
+      "metricsLastSuccess": "마지막 성공",
+      "metricsLastFailure": "마지막 실패 원인",
+      "metricsNone": "아직 데이터 없음",
+      "metricsNever": "없음",
+      "metricsSuccessRate": "성공률"
     },
     "about": {
       "title": "Octopal 정보",
@@ -169,7 +196,10 @@
     },
     "editAgent": {
       "title": "에이전트 편집",
-      "deleteConfirm": "{{name}}을(를) 삭제할까요? .octo 파일이 영구적으로 제거됩니다."
+      "deleteConfirm": "{{name}}을(를) 삭제할까요? .octo 파일이 영구적으로 제거됩니다.",
+      "tabBasic": "기본 정보",
+      "tabPermissions": "권한",
+      "tabMcp": "MCP"
     },
     "createWorkspace": {
       "title": "새 워크스페이스",
