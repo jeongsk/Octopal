@@ -104,6 +104,10 @@
       "node": "Node.js",
       "github": "GitHub",
       "checkUpdates": "Check for Updates",
+      "checking": "Checking...",
+      "downloading": "Downloading",
+      "upToDate": "Up to date!",
+      "restartToUpdate": "Restart to Update",
       "copyright": "Made with ❤️ by Gilhyun"
     },
     "unsavedChanges": "Unsaved changes"

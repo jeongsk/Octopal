@@ -13,6 +13,8 @@ import {
   Trash2,
   Zap,
   Wrench,
+  Download,
+  Check,
 } from 'lucide-react'
 
 type SettingsTab = 'general' | 'agents' | 'appearance' | 'shortcuts' | 'advanced' | 'about'
@@ -40,6 +42,11 @@ export function SettingsPanel({ onSettingsSaved }: SettingsPanelProps = {}) {
     electron: string
     node: string
   } | null>(null)
+  const [updateStatus, setUpdateStatus] = useState<
+    'idle' | 'checking' | 'available' | 'downloading' | 'ready' | 'up-to-date' | 'error'
+  >('idle')
+  const [updateError, setUpdateError] = useState<string | null>(null)
+  const [downloadProgress, setDownloadProgress] = useState<number>(0)
 
   const TABS: { id: SettingsTab; label: string; icon: typeof Settings }[] = [
     { id: 'general', label: t('settings.tabs.general'), icon: Settings },
@@ -133,6 +140,49 @@ export function SettingsPanel({ onSettingsSaved }: SettingsPanelProps = {}) {
     setNewTrigger('')
     setNewExpansion('')
     setShortcutError(null)
+  }
+
+  const checkForUpdates = async () => {
+    try {
+      setUpdateStatus('checking')
+      setUpdateError(null)
+      const { check } = await import('@tauri-apps/plugin-updater')
+      const update = await check()
+      if (update) {
+        setUpdateStatus('downloading')
+        let totalBytes = 0
+        let downloadedBytes = 0
+        await update.downloadAndInstall((event) => {
+          if (event.event === 'Started' && event.data.contentLength) {
+            totalBytes = event.data.contentLength
+          } else if (event.event === 'Progress') {
+            downloadedBytes += event.data.chunkLength
+            if (totalBytes > 0) {
+              setDownloadProgress(Math.round((downloadedBytes / totalBytes) * 100))
+            }
+          } else if (event.event === 'Finished') {
+            setUpdateStatus('ready')
+          }
+        })
+        setUpdateStatus('ready')
+      } else {
+        setUpdateStatus('up-to-date')
+        setTimeout(() => setUpdateStatus('idle'), 3000)
+      }
+    } catch (err: any) {
+      setUpdateStatus('error')
+      setUpdateError(err?.message || 'Update check failed')
+      setTimeout(() => setUpdateStatus('idle'), 5000)
+    }
+  }
+
+  const relaunchApp = async () => {
+    try {
+      const { relaunch } = await import('@tauri-apps/plugin-process')
+      await relaunch()
+    } catch {
+      // fallback
+    }
   }
 
   const save = async () => {
@@ -582,10 +632,42 @@ export function SettingsPanel({ onSettingsSaved }: SettingsPanelProps = {}) {
                 <ExternalLink size={14} />
                 <span>{t('settings.about.github')}</span>
               </button>
-              <button className="settings-about-link" disabled>
-                <RotateCw size={14} />
-                <span>{t('settings.about.checkUpdates')}</span>
-              </button>
+              {updateStatus === 'ready' ? (
+                <button
+                  className="settings-about-link settings-update-ready"
+                  onClick={relaunchApp}
+                >
+                  <Download size={14} />
+                  <span>{t('settings.about.restartToUpdate')}</span>
+                </button>
+              ) : (
+                <button
+                  className="settings-about-link"
+                  disabled={updateStatus === 'checking' || updateStatus === 'downloading'}
+                  onClick={checkForUpdates}
+                >
+                  {updateStatus === 'checking' ? (
+                    <RotateCw size={14} className="spin" />
+                  ) : updateStatus === 'downloading' ? (
+                    <Download size={14} />
+                  ) : updateStatus === 'up-to-date' ? (
+                    <Check size={14} />
+                  ) : (
+                    <RotateCw size={14} />
+                  )}
+                  <span>
+                    {updateStatus === 'checking'
+                      ? t('settings.about.checking')
+                      : updateStatus === 'downloading'
+                        ? `${t('settings.about.downloading')} ${downloadProgress}%`
+                        : updateStatus === 'up-to-date'
+                          ? t('settings.about.upToDate')
+                          : updateStatus === 'error'
+                            ? updateError || 'Error'
+                            : t('settings.about.checkUpdates')}
+                  </span>
+                </button>
+              )}
             </div>
 
             <p className="settings-about-copyright">

@@ -29,7 +29,11 @@ jobs:
             bundle-root: src-tauri/target/release/bundle
             artifact-glob: |
               src-tauri/target/release/bundle/msi/*.msi
+              src-tauri/target/release/bundle/msi/*.msi.zip
+              src-tauri/target/release/bundle/msi/*.msi.zip.sig
               src-tauri/target/release/bundle/nsis/*.exe
+              src-tauri/target/release/bundle/nsis/*.nsis.zip
+              src-tauri/target/release/bundle/nsis/*.nsis.zip.sig
 
     runs-on: ${{ matrix.platform }}
     steps:
@@ -63,18 +67,16 @@ jobs:
 
       - name: Build Tauri app
         env:
-          # macOS code signing + notarization. Leave these secrets unset
-          # to produce an unsigned build (users will have to right-click →
-          # Open the .app the first time). Set them in repo Settings →
-          # Secrets to enable full signing + notarization.
+          # macOS code signing + notarization
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          # Windows: no signing by default. Set CSC_LINK / CSC_KEY_PASSWORD
-          # if you have a code signing cert.
+          # Tauri updater signing
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: pnpm exec tauri build ${{ matrix.tauri-args }}
 
       - name: List bundle output
@@ -108,6 +110,56 @@ jobs:
       - name: List collected assets
         run: find dist-assets -type f -maxdepth 3
 
+      - name: Generate latest.json for updater
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          PUB_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          NOTES="Release v${VERSION}"
+          BASE_URL="https://github.com/gilhyun/Octopal/releases/download/${GITHUB_REF_NAME}"
+
+          # Read macOS signature
+          MAC_SIG=""
+          MAC_SIG_FILE=$(find dist-assets -name "*.app.tar.gz.sig" | head -1)
+          if [ -f "$MAC_SIG_FILE" ]; then
+            MAC_SIG=$(cat "$MAC_SIG_FILE")
+          fi
+          MAC_TAR=$(find dist-assets -name "*.app.tar.gz" ! -name "*.sig" | head -1)
+          MAC_TAR_NAME=$(basename "$MAC_TAR" 2>/dev/null || echo "")
+
+          # Read Windows NSIS signature
+          WIN_NSIS_SIG=""
+          WIN_NSIS_SIG_FILE=$(find dist-assets -name "*.nsis.zip.sig" | head -1)
+          if [ -f "$WIN_NSIS_SIG_FILE" ]; then
+            WIN_NSIS_SIG=$(cat "$WIN_NSIS_SIG_FILE")
+          fi
+          WIN_NSIS_ZIP=$(find dist-assets -name "*.nsis.zip" ! -name "*.sig" | head -1)
+          WIN_NSIS_ZIP_NAME=$(basename "$WIN_NSIS_ZIP" 2>/dev/null || echo "")
+
+          # Build JSON
+          cat > dist-assets/latest.json <<ENDJSON
+          {
+            "version": "${VERSION}",
+            "notes": "${NOTES}",
+            "pub_date": "${PUB_DATE}",
+            "platforms": {
+              "darwin-aarch64": {
+                "signature": "${MAC_SIG}",
+                "url": "${BASE_URL}/${MAC_TAR_NAME}"
+              },
+              "darwin-x86_64": {
+                "signature": "${MAC_SIG}",
+                "url": "${BASE_URL}/${MAC_TAR_NAME}"
+              },
+              "windows-x86_64": {
+                "signature": "${WIN_NSIS_SIG}",
+                "url": "${BASE_URL}/${WIN_NSIS_ZIP_NAME}"
+              }
+            }
+          }
+          ENDJSON
+          echo "=== latest.json ==="
+          cat dist-assets/latest.json
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -116,8 +168,13 @@ jobs:
           files: |
             dist-assets/**/*.dmg
             dist-assets/**/*.msi
+            dist-assets/**/*.msi.zip
+            dist-assets/**/*.msi.zip.sig
             dist-assets/**/*.exe
+            dist-assets/**/*.nsis.zip
+            dist-assets/**/*.nsis.zip.sig
             dist-assets/**/*.app.tar.gz
             dist-assets/**/*.app.tar.gz.sig
+            dist-assets/latest.json
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
