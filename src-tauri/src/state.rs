@@ -73,6 +73,9 @@ pub struct HistoryMessage {
     /// Attachments (images, text files) sent with the message
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub attachments: Option<serde_json::Value>,
+    /// Token usage data (input/output tokens, cost, duration, model)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub usage: Option<serde_json::Value>,
 }
 
 /// App settings

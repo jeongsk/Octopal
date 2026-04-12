@@ -370,6 +370,7 @@ export function App() {
               const list = prev[folder] || []
               const rawText = res.ok ? res.output : `Error: ${(res as any).error}`
               const permReq = res.ok ? parsePermissionRequest(rawText, assistant.name) : undefined
+              const usage = res.ok ? (res as any).usage : undefined
               return {
                 ...prev,
                 [folder]: list.map((m) =>
@@ -381,6 +382,7 @@ export function App() {
                         error: !res.ok,
                         activity: undefined,
                         permissionRequest: permReq,
+                        ...(usage ? { usage } : {}),
                       }
                     : m
                 ),
@@ -652,8 +654,12 @@ export function App() {
   // Token usage: attach usage reports to the corresponding message bubbles
   useEffect(() => {
     const unsubscribe = window.api.onUsageReport(({ runId, usage }) => {
+      console.log('[UsageReport] 📊 received usage event:', runId, JSON.stringify(usage))
       const mapping = runMapRef.current.get(runId)
-      if (!mapping) return
+      if (!mapping) {
+        console.warn('[UsageReport] ⚠️ no mapping found for runId:', runId, '- runMap keys:', [...runMapRef.current.keys()])
+        return
+      }
       setMessages((prev) => {
         const list = prev[mapping.folderPath] || []
         return {
@@ -1161,7 +1167,7 @@ export function App() {
       .map((a) => a.path)
 
     console.log('[InvokeAgent] 🚀 target:', target.name, 'depth:', depth, 'prompt:', prompt.slice(0, 100), 'model:', model, 'octoPath:', target.path)
-    let res: { ok: boolean; output: string; error?: string }
+    let res: { ok: boolean; output: string; error?: string; usage?: import('./types').TokenUsage }
     try {
       res = await window.api.sendMessage({
         folderPath: folderPathAtStart,
@@ -1180,7 +1186,8 @@ export function App() {
       console.error('[InvokeAgent] ❌ sendMessage error for', target.name, ':', err)
       res = { ok: false, output: '', error: String(err) }
     } finally {
-      runMapRef.current.delete(runId)
+      // NOTE: runMapRef.delete is deferred until AFTER usage processing
+      // so that the onUsageReport listener can still find the mapping.
       activeRunsRef.current.delete(lockKey)
 
       // Release our lock slot so the next queued caller can proceed.
@@ -1201,31 +1208,40 @@ export function App() {
       return // Don't chain — bundled re-invocation will handle it
     }
 
-    console.log('[InvokeAgent] 📥 response for', target.name, '- ok:', res.ok, 'output length:', res.output?.length, 'error:', res.error, 'output preview:', res.output?.slice(0, 200))
+    console.log('[InvokeAgent] 📥 response for', target.name, '- ok:', res.ok, 'output length:', res.output?.length, 'error:', res.error, 'usage:', JSON.stringify(res.usage), 'output preview:', res.output?.slice(0, 200))
     const rawText = res.ok ? res.output : `Error: ${res.error}`
     const permReq = res.ok ? parsePermissionRequest(rawText, target.name) : undefined
     // Hide both the permission-request tag and the handoff tag from the
     // rendered bubble so users never see the protocol markup.
     const displayText = stripHandoffTags(permReq ? stripPermissionTag(rawText) : rawText)
 
+    const resUsage = res.ok ? (res as any).usage : undefined
+    console.log('[InvokeAgent] 🏷️ setting usage on message:', pendingId, 'resUsage:', JSON.stringify(resUsage), 'res.ok:', res.ok)
     setMessages((prev) => {
       const list = prev[folderPathAtStart] || []
+      const updated = list.map((m) =>
+        m.id === pendingId
+          ? {
+              ...m,
+              text: displayText,
+              pending: false,
+              error: !res.ok,
+              activity: undefined,
+              permissionRequest: permReq,
+              ...(resUsage ? { usage: resUsage } : {}),
+            }
+          : m
+      )
+      const target_msg = updated.find(m => m.id === pendingId)
+      console.log('[InvokeAgent] 🏷️ after map, message usage:', target_msg?.id, JSON.stringify(target_msg?.usage))
       return {
         ...prev,
-        [folderPathAtStart]: list.map((m) =>
-          m.id === pendingId
-            ? {
-                ...m,
-                text: displayText,
-                pending: false,
-                error: !res.ok,
-                activity: undefined,
-                permissionRequest: permReq,
-              }
-            : m
-        ),
+        [folderPathAtStart]: updated,
       }
     })
+
+    // Now safe to remove the runMap entry — usage has been processed
+    runMapRef.current.delete(runId)
 
     // Mark this agent as completed in the chain
     const chain = activeChainRef.current.get(chainKey)

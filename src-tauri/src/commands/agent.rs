@@ -1,5 +1,5 @@
 use crate::state::ManagedState;
-use serde::Serialize;
+use serde::{Serialize, Deserialize};
 use std::fs;
 use std::io::{BufRead, BufReader};
 use std::path::Path;
@@ -56,8 +56,8 @@ struct UsageEvent {
     usage: UsageData,
 }
 
-#[derive(Clone, Serialize)]
-struct UsageData {
+#[derive(Clone, Serialize, Deserialize)]
+pub struct UsageData {
     #[serde(rename = "inputTokens")]
     input_tokens: u64,
     #[serde(rename = "outputTokens")]
@@ -81,6 +81,8 @@ pub struct SendResult {
     pub output: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub usage: Option<UsageData>,
 }
 
 #[derive(Serialize)]
@@ -133,6 +135,7 @@ pub async fn send_message(
             ok: false,
             output: None,
             error: Some("Invalid folder path".to_string()),
+            usage: None,
         });
     }
 
@@ -667,6 +670,7 @@ pub async fn send_message(
         let reader = BufReader::new(stdout);
 
         let mut final_result = String::new();
+        let mut final_usage: Option<UsageData> = None;
 
         for line in reader.lines() {
             let line = match line {
@@ -854,6 +858,11 @@ pub async fn send_message(
 
                 // Handle result event
                 if event.get("type").and_then(|v| v.as_str()) == Some("result") {
+                    eprintln!("[octo:usage] result event received, has usage: {}, has total_cost_usd: {}, keys: {:?}",
+                        event.get("usage").is_some(),
+                        event.get("total_cost_usd").is_some(),
+                        event.as_object().map(|o| o.keys().collect::<Vec<_>>()).unwrap_or_default()
+                    );
                     final_result = event
                         .get("result")
                         .and_then(|v| v.as_str())
@@ -886,13 +895,18 @@ pub async fn send_message(
                                 usage.model = obj.keys().next().map(|k| k.clone());
                             }
                         }
+                        // Emit event for real-time listeners
+                        eprintln!("[octo:usage] emitting usage event: runId={}, inputTokens={}, outputTokens={}, model={:?}",
+                            run_id_clone, usage.input_tokens, usage.output_tokens, usage.model);
                         let _ = app_clone.emit(
                             "octo:usage",
                             UsageEvent {
                                 run_id: run_id_clone.clone(),
-                                usage,
+                                usage: usage.clone(),
                             },
                         );
+                        // Also store for inclusion in the return value
+                        final_usage = Some(usage);
                     }
                 }
             }
@@ -925,13 +939,13 @@ pub async fn send_message(
             eprintln!("[octopal] claude stderr: {}", stderr_output.trim());
         }
 
-        Ok::<String, String>(final_result.trim().to_string())
+        Ok::<(String, Option<UsageData>), String>((final_result.trim().to_string(), final_usage))
     })
     .await
     .map_err(|e| e.to_string())?;
 
     match result {
-        Ok(output) => {
+        Ok((output, usage)) => {
             // Update octo history
             let mut octo: serde_json::Value = {
                 let content = fs::read_to_string(&octo_path).map_err(|e| e.to_string())?;
@@ -977,12 +991,17 @@ pub async fn send_message(
                 vec![]
             };
 
-            room_history.push(serde_json::json!({
+            let mut history_entry = serde_json::json!({
                 "id": uuid::Uuid::new_v4().to_string(),
                 "agentName": agent_name,
                 "text": output,
                 "ts": chrono::Utc::now().timestamp_millis() as f64,
-            }));
+            });
+            // Persist usage data so it survives reload
+            if let Some(ref u) = usage {
+                history_entry["usage"] = serde_json::to_value(u).unwrap_or_default();
+            }
+            room_history.push(history_entry);
 
             fs::write(
                 &room_history_path,
@@ -994,12 +1013,14 @@ pub async fn send_message(
                 ok: true,
                 output: Some(output),
                 error: None,
+                usage,
             })
         }
         Err(e) => Ok(SendResult {
             ok: false,
             output: None,
             error: Some(e),
+            usage: None,
         }),
     }
 }

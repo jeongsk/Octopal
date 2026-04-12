@@ -134,7 +134,7 @@ interface Window {
       imagePaths?: string[]
       textPaths?: string[]
       model?: 'sonnet' | 'opus'
-    }) => Promise<{ ok: true; output: string } | { ok: false; error: string }>
+    }) => Promise<{ ok: true; output: string; usage?: import('./types').TokenUsage } | { ok: false; error: string }>
     onActivity: (cb: (data: { runId: string; text: string; folderPath?: string; agentName?: string }) => void) => () => void
     onActivityLog: (
       cb: (data: {

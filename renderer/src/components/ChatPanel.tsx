@@ -972,6 +972,12 @@ export function ChatPanel({
                     })}
                   </div>
                 )}
+                {(() => {
+                  if (!isUser && !m.pending) {
+                    console.log('[TokenBadge] 🔍 message:', m.id, 'usage:', JSON.stringify(m.usage), 'pending:', m.pending, 'isUser:', isUser)
+                  }
+                  return null
+                })()}
                 {!isUser && !m.pending && m.usage && (
                   <TokenUsageBadge usage={m.usage} />
                 )}
