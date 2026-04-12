@@ -11,7 +11,8 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Electron-47848F?style=flat-square&logo=electron&logoColor=white" />
+  <img src="https://img.shields.io/badge/Tauri_2-FFC131?style=flat-square&logo=tauri&logoColor=black" />
+  <img src="https://img.shields.io/badge/Rust-000000?style=flat-square&logo=rust&logoColor=white" />
   <img src="https://img.shields.io/badge/React_18-61DAFB?style=flat-square&logo=react&logoColor=black" />
   <img src="https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white" />
   <img src="https://img.shields.io/badge/Vite-646CFF?style=flat-square&logo=vite&logoColor=white" />
@@ -121,14 +122,11 @@ claude login
 
 👉 **[최신 버전 다운로드](https://github.com/gilhyun/Octopal/releases)** (macOS / Windows)
 
-> **⚠️ 코드 서명 안내**
+> **⚠️ Windows 사용자 안내**
 >
-> Octopal은 아직 코드 서명이 적용되지 않았습니다. 앱을 처음 실행할 때 보안 경고가 나타날 수 있습니다.
+> 앱을 처음 실행할 때 보안 경고가 나타날 수 있습니다.
 >
-> - **macOS**: _"Octopal"은(는) Apple에서 악성 소프트웨어가 있는지 확인할 수 없기 때문에 열 수 없습니다._ → **시스템 설정 → 개인정보 보호 및 보안**으로 이동하여 아래로 스크롤한 뒤 **"확인 없이 열기"**를 클릭하세요.
 > - **Windows**: _Windows가 PC를 보호했습니다_ (SmartScreen) → **"추가 정보"** 클릭 → **"실행"**을 클릭하세요.
->
-> 코드 서명은 향후 릴리즈에서 추가할 예정입니다.
 
 ## Getting Started
 
@@ -139,41 +137,55 @@ npm install
 # 개발 모드 (Hot Reload)
 npm run dev
 
-# 프로덕션 빌드 & 실행
-npm run prod
+# 프로덕션 빌드
+npm run build
 ```
 
 ### 스크립트
 
 | 명령어 | 설명 |
 |--------|------|
-| `npm run dev` | Vite + Electron 동시 실행 (개발 모드) |
-| `npm run dev:renderer` | 프론트엔드만 실행 |
-| `npm run dev:main` | Electron 메인 프로세스만 실행 |
-| `npm run build` | TypeScript + Vite 프로덕션 빌드 |
-| `npm run start` | 빌드된 앱 실행 |
-| `npm run prod` | 빌드 + 실행 (원스텝) |
+| `npm run dev` | Tauri 개발 모드 (Vite + Rust 백엔드, 핫 리로드) |
+| `npm run build` | 프로덕션 빌드 (Rust 백엔드 + Vite 프론트엔드 컴파일) |
 
 ## Tech Stack
 
 | Layer | Tech |
 |-------|------|
-| Desktop | Electron 33 |
+| Desktop | Tauri 2 (Rust 백엔드) |
 | Frontend | React 18 + TypeScript 5.6 |
-| Build | Vite 5 |
+| Build | Vite 5 + Cargo |
 | AI Engine | Claude CLI |
 | Markdown | react-markdown + remark-gfm + rehype-highlight |
 | Icons | Lucide React |
 | i18n | i18next + react-i18next |
 | Styling | CSS (Dark Theme + Custom Fonts) |
 
+> **왜 Rust?** Octopal은 Electron 대신 [Tauri 2](https://tauri.app)를 사용합니다. Rust 기반 백엔드는 훨씬 작은 바이너리 크기(~10MB vs ~200MB), 낮은 메모리 사용량, 네이티브 OS 통합을 제공하면서도 동일한 React + TypeScript 프론트엔드를 유지합니다.
+
 ## Project Structure
 
 ```
 Octopal/
-├── src/                          # Electron 메인 프로세스
-│   ├── main.ts                   # 윈도우 관리, IPC 핸들러, 파일 워치
-│   └── preload.ts                # Context-isolated IPC 브릿지
+├── src-tauri/                    # Tauri / Rust 백엔드
+│   ├── src/
+│   │   ├── main.rs               # 앱 엔트리포인트
+│   │   ├── lib.rs                # 플러그인 등록, 커맨드 라우팅
+│   │   ├── state.rs              # 공유 앱 상태
+│   │   └── commands/             # Tauri IPC 커맨드 핸들러
+│   │       ├── agent.rs          # 에이전트 라이프사이클
+│   │       ├── claude_cli.rs     # Claude CLI 스폰 & 스트리밍
+│   │       ├── dispatcher.rs     # 메시지 라우팅 / 오케스트레이션
+│   │       ├── files.rs          # 파일 시스템 작업
+│   │       ├── folder.rs         # 폴더 관리
+│   │       ├── workspace.rs      # 워크스페이스 CRUD
+│   │       ├── wiki.rs           # 위키 페이지 CRUD
+│   │       ├── settings.rs       # 앱 설정
+│   │       ├── octo.rs           # .octo 파일 읽기/쓰기
+│   │       ├── backup.rs         # 상태 백업
+│   │       └── file_lock.rs      # 파일 잠금
+│   ├── Cargo.toml                # Rust 의존성
+│   └── tauri.conf.json           # Tauri 앱 설정
 │
 ├── renderer/src/                 # React 프론트엔드
 │   ├── App.tsx                   # 루트 컴포넌트 (상태 관리, 에이전트 오케스트레이션)
@@ -195,11 +207,6 @@ Octopal/
 │   │   ├── EmojiPicker.tsx       # 이모지 선택기
 │   │   ├── MentionPopup.tsx      # @멘션 자동완성
 │   │   └── modals/               # 모달 다이얼로그
-│   │       ├── CreateAgentModal.tsx
-│   │       ├── EditAgentModal.tsx
-│   │       ├── CreateWorkspaceModal.tsx
-│   │       ├── WelcomeModal.tsx
-│   │       └── OpenFolderModal.tsx
 │   │
 │   └── i18n/                     # 다국어
 │       ├── index.ts              # i18next 설정
@@ -207,37 +214,34 @@ Octopal/
 │           ├── en.json           # English
 │           └── ko.json           # 한국어
 │
-├── scripts/
-│   └── patch-electron-name.js    # macOS 앱 이름 패치 (postinstall)
-│
 └── assets/                       # 로고, 아이콘
 ```
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────┐
-│                 Electron                     │
-│  ┌────────────┐         ┌────────────────┐  │
-│  │  Main       │  IPC    │   Renderer     │  │
-│  │  Process    │◄───────►│   (React)      │  │
-│  │  (main.ts)  │preload  │   (App.tsx)    │  │
-│  └──────┬─────┘         └───────┬────────┘  │
-│         │                       │            │
-│    ┌────▼────┐           ┌──────▼──────┐    │
-│    │ File    │           │ Components  │    │
-│    │ System  │           │ ChatPanel   │    │
-│    │ .octo   │           │ Sidebars    │    │
-│    │ Wiki    │           │ Modals      │    │
-│    │ State   │           │ Settings    │    │
-│    └────┬────┘           └─────────────┘    │
-│         │                                    │
-│    ┌────▼────┐                              │
-│    │ Claude  │                              │
-│    │ CLI     │                              │
-│    │ (spawn) │                              │
-│    └─────────┘                              │
-└─────────────────────────────────────────────┘
+┌──────────────────────────────────────────────┐
+│                  Tauri 2                      │
+│  ┌─────────────┐         ┌────────────────┐  │
+│  │  Rust Core   │  IPC    │   WebView      │  │
+│  │  (commands/) │◄───────►│   (React)      │  │
+│  │  lib.rs      │ invoke  │   App.tsx      │  │
+│  └──────┬──────┘         └───────┬────────┘  │
+│         │                        │            │
+│    ┌────▼────┐           ┌──────▼──────┐     │
+│    │ File    │           │ Components  │     │
+│    │ System  │           │ ChatPanel   │     │
+│    │ .octo   │           │ Sidebars    │     │
+│    │ Wiki    │           │ Modals      │     │
+│    │ State   │           │ Settings    │     │
+│    └────┬────┘           └─────────────┘     │
+│         │                                     │
+│    ┌────▼────┐                               │
+│    │ Claude  │                               │
+│    │ CLI     │                               │
+│    │ (spawn) │                               │
+│    └─────────┘                               │
+└──────────────────────────────────────────────┘
 ```
 
 ## Data Storage

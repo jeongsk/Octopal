@@ -1009,20 +1009,7 @@ pub fn stop_agent(run_id: String, state: State<'_, ManagedState>) -> StopResult 
     let mut agents = state.running_agents.lock().unwrap();
     if let Some(pid) = agents.remove(&run_id) {
         state.interrupted_runs.lock().unwrap().insert(run_id);
-        // Send SIGTERM
-        #[cfg(unix)]
-        {
-            unsafe {
-                libc::kill(pid as i32, libc::SIGTERM);
-            }
-        }
-        #[cfg(windows)]
-        {
-            Command::new("taskkill")
-                .args(&["/PID", &pid.to_string(), "/T", "/F"])
-                .output()
-                .ok();
-        }
+        kill_pid(pid);
         StopResult {
             ok: true,
             stopped: Some(true),
@@ -1045,16 +1032,31 @@ pub fn stop_all_agents(state: State<'_, ManagedState>) -> StopAllResult {
             .lock()
             .unwrap()
             .insert(run_id);
-        #[cfg(unix)]
-        {
-            unsafe {
-                libc::kill(pid as i32, libc::SIGTERM);
-            }
-        }
+        kill_pid(pid);
     }
     StopAllResult {
         ok: true,
         stopped: count,
+    }
+}
+
+/// Cross-platform process kill helper. Used by both `stop_agent` and
+/// `stop_all_agents` so the platform branches live in one place.
+///
+/// On Unix: sends SIGTERM via `libc::kill`.
+/// On Windows: spawns `taskkill /PID <pid> /T /F` to kill the process tree.
+fn kill_pid(pid: u32) {
+    #[cfg(unix)]
+    {
+        unsafe {
+            libc::kill(pid as i32, libc::SIGTERM);
+        }
+    }
+    #[cfg(windows)]
+    {
+        let _ = std::process::Command::new("taskkill")
+            .args(["/PID", &pid.to_string(), "/T", "/F"])
+            .output();
     }
 }
 
@@ -1087,7 +1089,12 @@ pub fn mcp_install_package(_package_name: String) -> serde_json::Value {
 #[tauri::command]
 pub fn new_window(app_handle: tauri::AppHandle) -> serde_json::Value {
     let label = format!("window-{}", uuid::Uuid::new_v4());
-    match tauri::WebviewWindowBuilder::new(
+
+    // Cross-platform builder. Methods like `title_bar_style`, `hidden_title`,
+    // and `accept_first_mouse` are macOS-only and don't exist on the
+    // Windows/Linux builder, so we apply them inside a `cfg(target_os)`
+    // block instead of chaining them directly.
+    let builder = tauri::WebviewWindowBuilder::new(
         &app_handle,
         &label,
         tauri::WebviewUrl::App("index.html".into()),
@@ -1096,12 +1103,15 @@ pub fn new_window(app_handle: tauri::AppHandle) -> serde_json::Value {
     .inner_size(1200.0, 800.0)
     .min_inner_size(300.0, 400.0)
     .decorations(true)
-    .title_bar_style(tauri::TitleBarStyle::Overlay)
-    .hidden_title(true)
-    .accept_first_mouse(true)
-    .focused(true)
-    .build()
-    {
+    .focused(true);
+
+    #[cfg(target_os = "macos")]
+    let builder = builder
+        .title_bar_style(tauri::TitleBarStyle::Overlay)
+        .hidden_title(true)
+        .accept_first_mouse(true);
+
+    match builder.build() {
         Ok(_) => serde_json::json!({ "ok": true, "label": label }),
         Err(e) => serde_json::json!({ "ok": false, "error": e.to_string() }),
     }

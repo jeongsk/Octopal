@@ -11,7 +11,8 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Electron-47848F?style=flat-square&logo=electron&logoColor=white" />
+  <img src="https://img.shields.io/badge/Tauri_2-FFC131?style=flat-square&logo=tauri&logoColor=black" />
+  <img src="https://img.shields.io/badge/Rust-000000?style=flat-square&logo=rust&logoColor=white" />
   <img src="https://img.shields.io/badge/React_18-61DAFB?style=flat-square&logo=react&logoColor=black" />
   <img src="https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white" />
   <img src="https://img.shields.io/badge/Vite-646CFF?style=flat-square&logo=vite&logoColor=white" />
@@ -121,14 +122,11 @@ claude login
 
 👉 **[Download the latest release](https://github.com/gilhyun/Octopal/releases)** (macOS / Windows)
 
-> **⚠️ Note on code signing**
+> **⚠️ Note for Windows users**
 >
-> Octopal is not yet code-signed. You may see a security warning when launching the app for the first time.
+> You may see a security warning when launching the app for the first time.
 >
-> - **macOS**: _"Octopal" can't be opened because Apple cannot check it for malicious software._ → Go to **System Settings → Privacy & Security**, scroll down, and click **"Open Anyway"**.
 > - **Windows**: _Windows protected your PC_ (SmartScreen) → Click **"More info"** → **"Run anyway"**.
->
-> We plan to add code signing in a future release.
 
 ## Getting Started
 
@@ -139,41 +137,55 @@ npm install
 # Development mode (Hot Reload)
 npm run dev
 
-# Production build & run
-npm run prod
+# Production build
+npm run build
 ```
 
 ### Scripts
 
 | Command | Description |
 |---------|-------------|
-| `npm run dev` | Run Vite + Electron simultaneously (dev mode) |
-| `npm run dev:renderer` | Run frontend only |
-| `npm run dev:main` | Run Electron main process only |
-| `npm run build` | TypeScript + Vite production build |
-| `npm run start` | Run the built app |
-| `npm run prod` | Build + run (one step) |
+| `npm run dev` | Run Tauri dev mode (Vite + Rust backend with hot reload) |
+| `npm run build` | Production build (compiles Rust backend + Vite frontend) |
 
 ## Tech Stack
 
 | Layer | Tech |
 |-------|------|
-| Desktop | Electron 33 |
+| Desktop | Tauri 2 (Rust backend) |
 | Frontend | React 18 + TypeScript 5.6 |
-| Build | Vite 5 |
+| Build | Vite 5 + Cargo |
 | AI Engine | Claude CLI |
 | Markdown | react-markdown + remark-gfm + rehype-highlight |
 | Icons | Lucide React |
 | i18n | i18next + react-i18next |
 | Styling | CSS (Dark Theme + Custom Fonts) |
 
+> **Why Rust?** Octopal uses [Tauri 2](https://tauri.app) instead of Electron. The Rust-based backend provides significantly smaller binary sizes (~10MB vs ~200MB), lower memory usage, and native OS integration — while keeping the same React + TypeScript frontend.
+
 ## Project Structure
 
 ```
 Octopal/
-├── src/                          # Electron main process
-│   ├── main.ts                   # Window management, IPC handlers, file watch
-│   └── preload.ts                # Context-isolated IPC bridge
+├── src-tauri/                    # Tauri / Rust backend
+│   ├── src/
+│   │   ├── main.rs               # App entry point
+│   │   ├── lib.rs                # Plugin registration, command routing
+│   │   ├── state.rs              # Shared app state
+│   │   └── commands/             # Tauri IPC command handlers
+│   │       ├── agent.rs          # Agent lifecycle
+│   │       ├── claude_cli.rs     # Claude CLI spawn & streaming
+│   │       ├── dispatcher.rs     # Message routing / orchestration
+│   │       ├── files.rs          # File system operations
+│   │       ├── folder.rs         # Folder management
+│   │       ├── workspace.rs      # Workspace CRUD
+│   │       ├── wiki.rs           # Wiki page CRUD
+│   │       ├── settings.rs       # App settings
+│   │       ├── octo.rs           # .octo file read/write
+│   │       ├── backup.rs         # State backup
+│   │       └── file_lock.rs      # File locking
+│   ├── Cargo.toml                # Rust dependencies
+│   └── tauri.conf.json           # Tauri app configuration
 │
 ├── renderer/src/                 # React frontend
 │   ├── App.tsx                   # Root component (state management, agent orchestration)
@@ -195,11 +207,6 @@ Octopal/
 │   │   ├── EmojiPicker.tsx       # Emoji picker
 │   │   ├── MentionPopup.tsx      # @mention autocomplete
 │   │   └── modals/               # Modal dialogs
-│   │       ├── CreateAgentModal.tsx
-│   │       ├── EditAgentModal.tsx
-│   │       ├── CreateWorkspaceModal.tsx
-│   │       ├── WelcomeModal.tsx
-│   │       └── OpenFolderModal.tsx
 │   │
 │   └── i18n/                     # Internationalization
 │       ├── index.ts              # i18next configuration
@@ -207,37 +214,34 @@ Octopal/
 │           ├── en.json           # English
 │           └── ko.json           # Korean
 │
-├── scripts/
-│   └── patch-electron-name.js    # macOS app name patch (postinstall)
-│
 └── assets/                       # Logo, icons
 ```
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────┐
-│                 Electron                     │
-│  ┌────────────┐         ┌────────────────┐  │
-│  │  Main       │  IPC    │   Renderer     │  │
-│  │  Process    │◄───────►│   (React)      │  │
-│  │  (main.ts)  │preload  │   (App.tsx)    │  │
-│  └──────┬─────┘         └───────┬────────┘  │
-│         │                       │            │
-│    ┌────▼────┐           ┌──────▼──────┐    │
-│    │ File    │           │ Components  │    │
-│    │ System  │           │ ChatPanel   │    │
-│    │ .octo   │           │ Sidebars    │    │
-│    │ Wiki    │           │ Modals      │    │
-│    │ State   │           │ Settings    │    │
-│    └────┬────┘           └─────────────┘    │
-│         │                                    │
-│    ┌────▼────┐                              │
-│    │ Claude  │                              │
-│    │ CLI     │                              │
-│    │ (spawn) │                              │
-│    └─────────┘                              │
-└─────────────────────────────────────────────┘
+┌──────────────────────────────────────────────┐
+│                  Tauri 2                      │
+│  ┌─────────────┐         ┌────────────────┐  │
+│  │  Rust Core   │  IPC    │   WebView      │  │
+│  │  (commands/) │◄───────►│   (React)      │  │
+│  │  lib.rs      │ invoke  │   App.tsx      │  │
+│  └──────┬──────┘         └───────┬────────┘  │
+│         │                        │            │
+│    ┌────▼────┐           ┌──────▼──────┐     │
+│    │ File    │           │ Components  │     │
+│    │ System  │           │ ChatPanel   │     │
+│    │ .octo   │           │ Sidebars    │     │
+│    │ Wiki    │           │ Modals      │     │
+│    │ State   │           │ Settings    │     │
+│    └────┬────┘           └─────────────┘     │
+│         │                                     │
+│    ┌────▼────┐                               │
+│    │ Claude  │                               │
+│    │ CLI     │                               │
+│    │ (spawn) │                               │
+│    └─────────┘                               │
+└──────────────────────────────────────────────┘
 ```
 
 ## Data Storage
