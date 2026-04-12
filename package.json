@@ -6,7 +6,8 @@
   "packageManager": "pnpm@10.8.1",
   "scripts": {
     "dev": "cargo tauri dev --config src-tauri/tauri.dev.conf.json",
-    "build": "cargo tauri build",
+    "build": "node scripts/tauri-build.mjs",
+    "build:signed": "cargo tauri build",
     "dev:renderer": "vite --config renderer/vite.config.ts",
     "test": "vitest run",
     "test:watch": "vitest",
