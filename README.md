@@ -37,7 +37,7 @@ Octopal is a team workspace of AI agents that runs on top of Claude Code. Create
 
 Built for power users who work on multiple projects simultaneously.
 
-All agent data is stored in the `octopal-agents/` folder inside your project — each agent gets its own subfolder with `config.json` and `prompt.md`. As long as you have the folder, you can pick up the conversation from anywhere.
+All agent data is stored in the `octopal-agents/` folder inside your project — each agent gets its own subfolder with `config.json` and `prompt.md`.
 
 ## Philosophy
 
