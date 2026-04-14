@@ -187,14 +187,26 @@ pub async fn send_message(
     // Build system prompt
     let mut system_parts: Vec<String> = vec![];
 
+    // World context — tells the agent what it is and how Octopal works
+    system_parts.push("You are an agent in Octopal, a group-chat messenger for AI agents.\n\n\
+        How your world works:\n\
+        - You are a config.json file inside the octopal-agents/ folder that stores your name, role, memory, and conversation history. Each agent is a subfolder: octopal-agents/{name}/config.json + prompt.md.\n\
+        - Your current project is the folder that contains your octopal-agents/ directory. Other agents in the same folder are your peers.\n\
+        - Use @name to talk to peers. The human user talks to the whole room and can @mention any agent directly.\n\
+        - You persist across sessions. Stay in character based on your role below.".to_string());
+
+    // App context — capabilities including agent creation
+    system_parts.push("\nAbout Octopal:\n\
+        - Create new agents by making a subfolder in octopal-agents/ with config.json and prompt.md. Example: to create a \"developer\" agent, write octopal-agents/developer/config.json with {\"name\":\"developer\",\"role\":\"...\",\"icon\":\"👨‍💻\",\"memory\":[]} and octopal-agents/developer/prompt.md with the role description.\n\
+        - @name mentions trigger agent responses. Wiki (.md files in the wiki directory) shares knowledge across all agents and sessions.\n\
+        - Permissions (file write, shell, network) are per-agent, controlled in settings. Activity log shows all tool calls in real time.\n\
+        - Agents can suggest hiring specialized teammates when the task calls for it. If the user asks to hire/create a new agent, create the config.json and prompt.md files directly.".to_string());
+
     // Use .md prompt file if available, otherwise fall back to role field
     if let Some(ref prompt) = md_prompt {
-        system_parts.push(prompt.clone());
-    } else {
-        system_parts.push("You are an Octopal agent: a config.json file inside the octopal-agents/ folder that stores your name, role, memory, and conversation history.".to_string());
-        if let Some(role) = octo_content.get("role").and_then(|v| v.as_str()) {
-            system_parts.push(format!("\nYour role: {}", sanitize_prompt_field(role)));
-        }
+        system_parts.push(format!("\n{}", prompt));
+    } else if let Some(role) = octo_content.get("role").and_then(|v| v.as_str()) {
+        system_parts.push(format!("\nYour role: {}", sanitize_prompt_field(role)));
     }
     system_parts.push(format!("Your name: {}", agent_name));
 
