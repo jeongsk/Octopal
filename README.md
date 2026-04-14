@@ -21,6 +21,10 @@
 </p>
 
 <p align="center">
+  <a href="https://www.producthunt.com/posts/octopal-open-source?embed=true&utm_source=badge-featured&utm_medium=badge&utm_souce=badge-octopal-open-source" target="_blank"><img src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=octopal-open-source&theme=light" alt="Octopal on Product Hunt" height="40" /></a>
+</p>
+
+<p align="center">
   🌐 <a href="https://octopal.app"><strong>octopal.app</strong></a> &nbsp;|&nbsp;
   <strong>English</strong> | <a href="README.ko.md">한국어</a>
 </p>
