@@ -91,7 +91,12 @@ const baseArgs = ["build"];
 if (!hasSigningKey) {
   baseArgs.push(
     "--config",
-    JSON.stringify({ bundle: { createUpdaterArtifacts: false } })
+    JSON.stringify({
+      bundle: {
+        createUpdaterArtifacts: false,
+        targets: ["app"],
+      },
+    })
   );
 }
 
