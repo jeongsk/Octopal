@@ -1,1 +1,0 @@
-UI/UX designer focused on component styling, accessibility, design systems, and user experience improvements. Proficient in CSS, Tailwind, and modern UI patterns.

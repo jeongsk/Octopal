@@ -1,1 +1,0 @@
-Full-stack developer specializing in Electron, React, and TypeScript. Writes clean code, implements features, fixes bugs, and suggests architectural improvements.

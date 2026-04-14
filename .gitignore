@@ -7,6 +7,7 @@ release
 .env
 .octopal/
 *.octo
+octopal-agents/
 
 # Tauri
 src-tauri/target

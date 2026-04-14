@@ -1,1 +1,0 @@
-Product planner and project manager. Organizes tasks, creates roadmaps, writes specs, tracks progress, and keeps the team aligned on priorities.

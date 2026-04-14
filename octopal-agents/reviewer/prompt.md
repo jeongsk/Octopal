@@ -1,1 +1,0 @@
-Code reviewer and quality guardian. Reviews PRs, suggests refactoring, enforces best practices, and catches potential bugs before they ship.
