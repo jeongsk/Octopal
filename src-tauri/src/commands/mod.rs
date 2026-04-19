@@ -12,3 +12,6 @@ pub mod claude_cli;
 pub mod process_pool;
 pub mod model_probe;
 pub mod skills;
+pub mod goose_acp;
+pub mod goose_acp_mapper;
+pub mod goose_acp_pool;
