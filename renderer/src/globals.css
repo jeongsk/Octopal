@@ -198,6 +198,10 @@
   --accent-hover: #d92a3a;
   --accent-glow: rgba(196, 32, 48, 0.18);
 
+  /* User bubble & send/stop buttons — warm dark, slightly above elevated */
+  --user-bubble-bg: #2a2823;
+  --user-bubble-bg-hover: #34312b;
+
   /* Semantic — harmonized with warm dark */
   --danger: #e84455;
   --danger-hover: #f25a6a;
@@ -252,6 +256,70 @@
 
   /* Transition */
   --transition: 0.15s ease;
+}
+
+/* ── Light Theme Override ── */
+/* Activated when <html data-theme="light">. The "system" option resolves to
+   either dark or light at runtime via prefers-color-scheme. Only color-bearing
+   tokens are redefined here — radii, font scale, and transitions inherit. */
+:root[data-theme='light'] {
+  --bg-base: #fafaf7;
+  --bg-surface: #ffffff;
+  --bg-elevated: #f3f1ec;
+  --bg-hover: #ebe8e1;
+
+  --border: #d8d4ca;
+  --border-hover: #c0bcb0;
+
+  --text-primary: #1f1d18;
+  --text-heading: #0e0d0a;
+  --text-secondary: #5a5648;
+  --text-muted: #807c70;
+  --text-dim: #a8a498;
+
+  --accent: #c42030;
+  --accent-hover: #a81828;
+  --accent-glow: rgba(196, 32, 48, 0.10);
+
+  --user-bubble-bg: #e8e4dc;
+  --user-bubble-bg-hover: #ddd9d0;
+
+  --danger: #d63445;
+  --danger-hover: #c02030;
+  --danger-text: #a81828;
+  --danger-bg: #fdf2f3;
+  --danger-glow: rgba(214, 52, 69, 0.06);
+
+  --success: #2f8a5e;
+  --success-hover: #267548;
+  --success-text: #1f6b48;
+  --success-bg: #f0f9f3;
+  --success-glow: rgba(47, 138, 94, 0.06);
+
+  --warning: #c98818;
+  --warning-hover: #a87012;
+  --warning-text: #8a5c0e;
+  --warning-bg: #fdf6e8;
+  --warning-glow: rgba(201, 136, 24, 0.06);
+
+  --info: #4276b4;
+  --info-hover: #355e90;
+  --info-text: #2c4f7a;
+  --info-bg: #eff4fa;
+  --info-glow: rgba(66, 118, 180, 0.06);
+
+  --tl-piping: #3D7A6E;
+  --tl-piping-text: #2f6358;
+  --tl-piping-bg: rgba(61, 122, 110, 0.05);
+  --tl-piping-bg-hover: rgba(61, 122, 110, 0.10);
+  --tl-piping-glow: rgba(61, 122, 110, 0.10);
+  --tl-lane-main: rgba(0, 0, 0, 0.02);
+  --tl-lane-main-border: rgba(0, 0, 0, 0.04);
+  --tl-lane-piping: rgba(61, 122, 110, 0.05);
+  --tl-lane-piping-border: rgba(61, 122, 110, 0.08);
+
+  --shadow-md: 0 6px 16px rgba(10, 10, 8, 0.08);
+  --shadow-lg: 0 12px 36px rgba(10, 10, 8, 0.10);
 }
 
 /* ── Reset ── */
@@ -2627,7 +2695,7 @@ button {
 }
 
 .message.user .bubble {
-  background: #2a2823;
+  background: var(--user-bubble-bg);
   color: var(--text-heading);
 }
 
@@ -3511,7 +3579,7 @@ button {
 }
 
 .send {
-  background: #2a2823;
+  background: var(--user-bubble-bg);
   color: var(--text-heading);
   border: none;
   height: 40px;
@@ -3528,7 +3596,7 @@ button {
 }
 
 .send:hover {
-  background: #34312b;
+  background: var(--user-bubble-bg-hover);
   filter: brightness(1.05);
 }
 
@@ -3538,12 +3606,12 @@ button {
 }
 
 .stop-btn {
-  background: #2a2823 !important;
+  background: var(--user-bubble-bg) !important;
   color: var(--text-heading) !important;
 }
 
 .stop-btn:hover {
-  background: #34312b !important;
+  background: var(--user-bubble-bg-hover) !important;
 }
 
 /* BorderBeam wrappers: preserve the composer-row flex behavior */
@@ -4448,17 +4516,41 @@ button {
   cursor: not-allowed;
 }
 
-.settings-theme-badge {
+/* Segmented control (e.g. theme: System / Light / Dark) */
+.settings-segment {
   display: inline-flex;
-  align-items: center;
-  padding: 4px 12px;
-  border-radius: 6px;
-  background: var(--bg-elevated);
+  align-items: stretch;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-base);
+  padding: 2px;
+  gap: 2px;
+  width: fit-content;
+}
+
+.settings-segment-option {
+  appearance: none;
+  background: transparent;
+  border: none;
   color: var(--text-secondary);
+  font: inherit;
   font-size: 13px;
   font-weight: 500;
-  width: fit-content;
-  border: 1px solid var(--border);
+  padding: 6px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background var(--transition), color var(--transition);
+}
+
+.settings-segment-option:hover:not(.settings-segment-option--active) {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.settings-segment-option--active {
+  background: var(--bg-elevated);
+  color: var(--text-heading);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
 }
 
 /* Slider */

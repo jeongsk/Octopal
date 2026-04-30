@@ -54,6 +54,7 @@ export function App() {
   const [leftSidebarOpen, setLeftSidebarOpen] = useState(true)
   const [rightSidebarOpen, setRightSidebarOpen] = useState(true)
   const [platform, setPlatform] = useState<string>('darwin')
+  const [theme, setTheme] = useState<'system' | 'light' | 'dark'>('system')
 
   // File access approval modal state
   const [fileAccessRequest, setFileAccessRequest] = useState<{
@@ -165,6 +166,10 @@ export function App() {
         i18n.changeLanguage(settings.general.language)
       }
       shortcutsRef.current = settings.shortcuts?.textExpansions || []
+      const saved = settings.appearance?.theme
+      if (saved === 'dark' || saved === 'light' || saved === 'system') {
+        setTheme(saved)
+      }
     })
     window.api.loadState().then(async (s) => {
       if (s.workspaces.length === 0) {
@@ -179,6 +184,22 @@ export function App() {
       }
     })
   }, [])
+
+  // Apply theme to <html data-theme>. For 'system', track OS preference live.
+  useEffect(() => {
+    const root = document.documentElement
+    if (theme === 'dark' || theme === 'light') {
+      root.dataset.theme = theme
+      return
+    }
+    const mql = window.matchMedia('(prefers-color-scheme: dark)')
+    const apply = () => {
+      root.dataset.theme = mql.matches ? 'dark' : 'light'
+    }
+    apply()
+    mql.addEventListener('change', apply)
+    return () => mql.removeEventListener('change', apply)
+  }, [theme])
 
   // Listen for MCP token expiry notifications from main process
   useEffect(() => {
@@ -1689,6 +1710,10 @@ export function App() {
         ) : centerTab === 'settings' ? (
           <SettingsPanel onSettingsSaved={(s) => {
             shortcutsRef.current = s.shortcuts?.textExpansions || []
+            const saved = s.appearance?.theme
+            if (saved === 'dark' || saved === 'light' || saved === 'system') {
+              setTheme(saved)
+            }
           }} />
         ) : state.activeWorkspaceId ? (
           <WikiPanel workspaceId={state.activeWorkspaceId} />

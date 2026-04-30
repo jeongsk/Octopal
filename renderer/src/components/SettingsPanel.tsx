@@ -411,10 +411,29 @@ export function SettingsPanel({ onSettingsSaved }: SettingsPanelProps = {}) {
 
             <div className="settings-field">
               <span className="settings-label">{t('settings.appearance.theme')}</span>
-              <div className="settings-theme-badge">{t('settings.appearance.themeDark')}</div>
-              <span className="settings-desc">
-                {t('settings.appearance.themeComingSoon')}
-              </span>
+              <div className="settings-segment" role="radiogroup" aria-label={t('settings.appearance.theme')}>
+                {(['system', 'light', 'dark'] as const).map((value) => {
+                  const labelKey =
+                    value === 'system'
+                      ? 'settings.appearance.themeSystem'
+                      : value === 'light'
+                        ? 'settings.appearance.themeLight'
+                        : 'settings.appearance.themeDark'
+                  const active = settings.appearance.theme === value
+                  return (
+                    <button
+                      key={value}
+                      type="button"
+                      role="radio"
+                      aria-checked={active}
+                      className={`settings-segment-option${active ? ' settings-segment-option--active' : ''}`}
+                      onClick={() => update('appearance', { theme: value })}
+                    >
+                      {t(labelKey)}
+                    </button>
+                  )
+                })}
+              </div>
             </div>
 
             <div className="settings-field">

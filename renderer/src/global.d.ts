@@ -76,6 +76,7 @@ interface AppSettings {
   }
   appearance: {
     chatFontSize: number
+    theme: 'dark' | 'light' | 'system'
   }
   shortcuts: {
     textExpansions: TextShortcut[]

@@ -120,6 +120,12 @@ pub struct DefaultPermissions {
 pub struct AppearanceSettings {
     #[serde(rename = "chatFontSize")]
     pub chat_font_size: u32,
+    #[serde(default = "default_theme")]
+    pub theme: String,
+}
+
+fn default_theme() -> String {
+    "system".to_string()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -192,7 +198,10 @@ impl Default for AppSettings {
                     network: false,
                 },
             },
-            appearance: AppearanceSettings { chat_font_size: 14 },
+            appearance: AppearanceSettings {
+                chat_font_size: 14,
+                theme: default_theme(),
+            },
             shortcuts: ShortcutSettings {
                 text_expansions: vec![],
             },

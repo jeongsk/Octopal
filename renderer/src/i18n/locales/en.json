@@ -49,8 +49,9 @@
     "appearance": {
       "title": "Appearance",
       "theme": "Theme",
+      "themeSystem": "System",
+      "themeLight": "Light",
       "themeDark": "Dark",
-      "themeComingSoon": "Light and System themes coming soon",
       "chatFontSize": "Chat Font Size"
     },
     "shortcuts": {
