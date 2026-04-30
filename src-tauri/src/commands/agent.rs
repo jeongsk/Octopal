@@ -1163,19 +1163,38 @@ pub async fn send_message(
             }
             conv_history.push(history_entry);
 
-            fs::write(
-                &conversation_path,
-                serde_json::to_string_pretty(&conv_history).unwrap(),
-            )
-            .ok();
+            // Atomic write: stage to <conv-id>.json.tmp then rename into
+            // place. The previous `.unwrap()` could panic the worker thread
+            // on a serialize failure; the bare `.ok()` silently dropped I/O
+            // errors so the user could "lose" an assistant reply on reload
+            // with no record of why.
+            let write_result = serde_json::to_string_pretty(&conv_history)
+                .map_err(|e| format!("serialize: {}", e))
+                .and_then(|json| {
+                    let tmp = conversation_path.with_extension("json.tmp");
+                    fs::write(&tmp, json).map_err(|e| format!("write tmp: {}", e))?;
+                    fs::rename(&tmp, &conversation_path)
+                        .map_err(|e| format!("rename: {}", e))
+                });
+            if let Err(e) = write_result {
+                eprintln!(
+                    "[octopal] failed to persist assistant reply for {}: {}",
+                    conversation_id, e
+                );
+            }
 
             // Update conversations index (lastSnippet / messageCount / updatedAt).
-            let _ = crate::commands::folder::touch_conversation_meta(
+            if let Err(e) = crate::commands::folder::touch_conversation_meta(
                 &folder_path,
                 &conversation_id,
                 &output,
                 response_ts,
-            );
+            ) {
+                eprintln!(
+                    "[octopal] touch_conversation_meta failed for {}: {}",
+                    conversation_id, e
+                );
+            }
 
             Ok(SendResult {
                 ok: true,

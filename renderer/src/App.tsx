@@ -949,6 +949,14 @@ export function App() {
         text,
         attachments: hasAttachments ? attachments : undefined,
       },
+    }).catch((err) => {
+      console.error('[Send] failed to persist user message', err)
+      showToast({
+        type: 'error',
+        title: t('conversations.persistFailedTitle'),
+        message: t('conversations.persistFailedMessage'),
+        duration: 6000,
+      })
     })
 
     // Add to buffer
@@ -1740,7 +1748,21 @@ export function App() {
   // ── Conversation lifecycle ──
 
   const handleNewConversation = async (folderPath: string) => {
-    const conv = await window.api.createConversation({ folderPath })
+    let conv: Conversation
+    try {
+      conv = await window.api.createConversation({ folderPath })
+    } catch (err) {
+      console.error('[Conversations] create failed', err)
+      showToast({
+        type: 'error',
+        title: t('conversations.createFailedTitle'),
+        message:
+          typeof err === 'string'
+            ? err
+            : (err as Error)?.message ?? t('conversations.createFailedMessage'),
+      })
+      return
+    }
     setConversations((prev) => ({
       ...prev,
       [folderPath]: sortConversations([conv, ...(prev[folderPath] || [])]),
@@ -1756,6 +1778,7 @@ export function App() {
   }
 
   const handleSwitchConversation = async (folderPath: string, conversationId: string) => {
+    const previousConvId = activeConversationId[folderPath]
     setActiveConversationId((prev) => ({ ...prev, [folderPath]: conversationId }))
     const messagesKey = convKey(folderPath, conversationId)
     if (activeFolder !== folderPath) {
@@ -1763,16 +1786,37 @@ export function App() {
     }
     setCenterTab('chat')
     if (messages[messagesKey]) return // already loaded
-    const { messages: history, hasMore } = await window.api.loadHistoryPaged({
-      folderPath,
-      conversationId,
-      limit: PAGE_SIZE,
-    })
-    setHasMoreMessages((prev) => ({ ...prev, [messagesKey]: hasMore }))
-    setMessages((prev) => ({
-      ...prev,
-      [messagesKey]: history.map((m) => ({ ...m, text: sanitizeDisplayText(m.text ?? '') })),
-    }))
+    try {
+      const { messages: history, hasMore } = await window.api.loadHistoryPaged({
+        folderPath,
+        conversationId,
+        limit: PAGE_SIZE,
+      })
+      setHasMoreMessages((prev) => ({ ...prev, [messagesKey]: hasMore }))
+      setMessages((prev) => ({
+        ...prev,
+        [messagesKey]: history.map((m) => ({ ...m, text: sanitizeDisplayText(m.text ?? '') })),
+      }))
+    } catch (err) {
+      console.error('[Conversations] switch failed', err)
+      // Revert active id so the UI doesn't get stuck on an empty
+      // "loaded" conversation that actually failed to load.
+      setActiveConversationId((prev) => {
+        if (previousConvId) {
+          return { ...prev, [folderPath]: previousConvId }
+        }
+        const { [folderPath]: _drop, ...rest } = prev
+        return rest
+      })
+      showToast({
+        type: 'error',
+        title: t('conversations.switchFailedTitle'),
+        message:
+          typeof err === 'string'
+            ? err
+            : (err as Error)?.message ?? t('conversations.switchFailedMessage'),
+      })
+    }
   }
 
   const handleRenameConversation = async (
@@ -1790,6 +1834,14 @@ export function App() {
       }))
     } catch (err) {
       console.error('[Conversations] rename failed', err)
+      showToast({
+        type: 'error',
+        title: t('conversations.renameFailedTitle'),
+        message:
+          typeof err === 'string'
+            ? err
+            : (err as Error)?.message ?? t('conversations.renameFailedMessage'),
+      })
     }
   }
 
@@ -1802,6 +1854,21 @@ export function App() {
       await window.api.deleteConversation({ folderPath, conversationId })
     } catch (err) {
       console.error('[Conversations] delete failed', err)
+      showToast({
+        type: 'error',
+        title: t('conversations.deleteFailedTitle'),
+        message:
+          typeof err === 'string'
+            ? err
+            : (err as Error)?.message ?? t('conversations.deleteFailedMessage'),
+      })
+      // Re-fetch list to recover from "deleted in another window" races.
+      try {
+        const refreshed = sortConversations(await window.api.listConversations(folderPath))
+        setConversations((prev) => ({ ...prev, [folderPath]: refreshed }))
+      } catch {
+        /* nothing more we can do */
+      }
       return
     }
     // Drop local state for this conversation

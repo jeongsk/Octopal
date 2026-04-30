@@ -8,8 +8,9 @@
 //! Each agent process is keyed by `"{folder}::{agent}::{conversation_id}"`
 //! so each conversation maintains its own session continuity (a "fresh
 //! chat" must mean a fresh Claude session, not just an empty UI). The
-//! dispatcher process uses `"__dispatcher__::{folder}"` and is intentionally
-//! NOT conversation-keyed — it's one-shot per route call.
+//! dispatcher process uses a single global key `"__dispatcher__"` and is
+//! shared across folders and conversations — routing is short and
+//! stateless, so per-conversation context isn't needed.
 //!
 //! When the agent's config changes (model, permissions, MCP), the old
 //! process is killed and a new one is created.
@@ -73,7 +74,7 @@ pub fn pool_key(folder: &str, agent: &str, conversation_id: &str) -> String {
 
 /// Manages a pool of persistent Claude CLI processes.
 pub struct ProcessPool {
-    /// key: "{folder}::{agent}::{conversation_id}" or "__dispatcher__::{folder}"
+    /// key: "{folder}::{agent}::{conversation_id}" or "__dispatcher__"
     processes: Mutex<HashMap<String, ProcessEntry>>,
 }
 
@@ -528,7 +529,11 @@ mod tests {
     }
 
     #[test]
-    fn dispatcher_and_agent_use_separate_keys() {
+    fn dispatcher_key_is_global_and_distinct_from_agent_keys() {
+        // The dispatcher uses a single global pool key (`__dispatcher__`),
+        // not folder- or conversation-scoped. Pins that contract so a future
+        // refactor that introduces per-folder dispatching has to update
+        // both this test and the docs in lockstep.
         let pool = ProcessPool::new();
 
         let mut dispatcher_entry = dummy_process_real_pid();

@@ -708,10 +708,38 @@ fn read_conversations_index(folder: &Path) -> Vec<ConversationMeta> {
     if !path.exists() {
         return vec![];
     }
-    fs::read_to_string(&path)
-        .ok()
-        .and_then(|s| serde_json::from_str::<Vec<ConversationMeta>>(&s).ok())
-        .unwrap_or_default()
+    let raw = match fs::read_to_string(&path) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!(
+                "[octopal] conversations index unreadable at {}: {}",
+                path.display(),
+                e
+            );
+            return vec![];
+        }
+    };
+    match serde_json::from_str::<Vec<ConversationMeta>>(&raw) {
+        Ok(list) => list,
+        Err(e) => {
+            // Move the corrupt file aside so existing per-conversation
+            // messages files aren't orphaned silently — the user can
+            // recover by inspecting the backup, and a future read will
+            // re-seed cleanly instead of repeatedly hitting the parse error.
+            let ts = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_millis())
+                .unwrap_or(0);
+            let backup = path.with_extension(format!("json.corrupt-{}", ts));
+            let _ = fs::rename(&path, &backup);
+            eprintln!(
+                "[octopal] conversations index corrupt: {} (moved to {})",
+                e,
+                backup.display()
+            );
+            vec![]
+        }
+    }
 }
 
 fn write_conversations_index(folder: &Path, list: &[ConversationMeta]) -> Result<(), String> {
@@ -803,21 +831,47 @@ fn migrate_legacy_room_history(folder: &Path) -> Option<String> {
         return None;
     }
 
-    let messages: Vec<serde_json::Value> = fs::read_to_string(&legacy)
-        .ok()
-        .and_then(|s| serde_json::from_str(&s).ok())
-        .unwrap_or_default();
+    let messages: Vec<serde_json::Value> = match fs::read_to_string(&legacy) {
+        Ok(s) => match serde_json::from_str(&s) {
+            Ok(v) => v,
+            Err(e) => {
+                // Preserve the corrupt legacy file under an explicit name
+                // so the user has a recovery path. The Default conversation
+                // still gets created (empty) so the marker writes and we
+                // don't loop on every list_conversations call.
+                let ts = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_millis())
+                    .unwrap_or(0);
+                let backup = legacy.with_extension(format!("json.corrupt-{}", ts));
+                let _ = fs::rename(&legacy, &backup);
+                eprintln!(
+                    "[octopal] legacy room-history.json corrupt: {} (moved to {})",
+                    e,
+                    backup.display()
+                );
+                vec![]
+            }
+        },
+        Err(_) => vec![],
+    };
 
     let id = Uuid::new_v4().to_string();
     let conv_dir = conversations_dir(folder);
-    if fs::create_dir_all(&conv_dir).is_err() {
+    if let Err(e) = fs::create_dir_all(&conv_dir) {
+        eprintln!("[octopal] migration mkdir failed: {}", e);
         return None;
     }
 
+    // Atomic write: stage to <id>.json.tmp, then fs::rename into place
+    // after the index write succeeds. Avoids orphan files when an earlier
+    // step succeeds and a later one fails (disk full, permissions).
     let dest = conversation_messages_path(folder, &id);
+    let dest_tmp = dest.with_extension("json.tmp");
     let messages_json =
         serde_json::to_string_pretty(&messages).unwrap_or_else(|_| "[]".to_string());
-    if fs::write(&dest, messages_json).is_err() {
+    if let Err(e) = fs::write(&dest_tmp, messages_json) {
+        eprintln!("[octopal] migration tmp write failed: {}", e);
         return None;
     }
 
@@ -837,7 +891,15 @@ fn migrate_legacy_room_history(folder: &Path) -> Option<String> {
         message_count: messages.len() as u32,
     };
 
-    if write_conversations_index(folder, &[meta]).is_err() {
+    if let Err(e) = write_conversations_index(folder, &[meta]) {
+        eprintln!("[octopal] migration index write failed: {}", e);
+        let _ = fs::remove_file(&dest_tmp);
+        return None;
+    }
+
+    if let Err(e) = fs::rename(&dest_tmp, &dest) {
+        eprintln!("[octopal] migration rename failed: {}", e);
+        let _ = fs::remove_file(&dest_tmp);
         return None;
     }
 
@@ -1160,20 +1222,250 @@ mod tests {
 
     #[test]
     fn list_conversations_sorts_by_updated_at_desc() {
+        // Bypass the wall-clock dependency in `create_conversation` by
+        // writing the index directly with deterministic timestamps. The
+        // earlier sleep-based version flaked when both calls landed in
+        // the same millisecond.
         let dir = tempdir().unwrap();
         let fp = folder_path(&dir);
-        let a = create_conversation(fp.clone(), Some("A".into())).unwrap();
-        // Force a divergence in updated_at
-        std::thread::sleep(std::time::Duration::from_millis(5));
-        let b = create_conversation(fp.clone(), Some("B".into())).unwrap();
+        fs::create_dir_all(conversations_dir(dir.path())).unwrap();
+
+        let metas = vec![
+            ConversationMeta {
+                id: "older".into(),
+                title: "A".into(),
+                created_at: 100.0,
+                updated_at: 100.0,
+                last_snippet: None,
+                message_count: 0,
+            },
+            ConversationMeta {
+                id: "newer".into(),
+                title: "B".into(),
+                created_at: 200.0,
+                updated_at: 200.0,
+                last_snippet: None,
+                message_count: 0,
+            },
+        ];
+        write_conversations_index(dir.path(), &metas).unwrap();
+        fs::write(conversation_messages_path(dir.path(), "older"), b"[]").unwrap();
+        fs::write(conversation_messages_path(dir.path(), "newer"), b"[]").unwrap();
+        fs::write(migration_marker_path(dir.path()), b"v1").unwrap();
 
         let list = list_conversations(fp).unwrap();
-        // Most recent first
-        assert!(list.iter().any(|c| c.id == a.id));
-        assert!(list.iter().any(|c| c.id == b.id));
-        // Find the position of a vs b — b should not appear after a
-        let pos_a = list.iter().position(|c| c.id == a.id).unwrap();
-        let pos_b = list.iter().position(|c| c.id == b.id).unwrap();
-        assert!(pos_b <= pos_a, "B (newer) should sort before or equal to A");
+        assert_eq!(list[0].id, "newer", "most-recent must be first");
+        assert_eq!(list[1].id, "older");
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // load_history_paged: page-math contract (C1)
+    // ─────────────────────────────────────────────────────────────────────
+
+    #[test]
+    fn load_history_paged_returns_empty_when_file_missing() {
+        let dir = tempdir().unwrap();
+        let fp = folder_path(&dir);
+        let result = load_history_paged(fp, "missing-id".into(), 50, None).unwrap();
+        assert_eq!(result.messages.len(), 0);
+        assert!(!result.has_more);
+    }
+
+    #[test]
+    fn load_history_paged_returns_tail_when_total_exceeds_limit() {
+        let dir = tempdir().unwrap();
+        let fp = folder_path(&dir);
+        let conv = create_conversation(fp.clone(), Some("X".into())).unwrap();
+        let messages: Vec<_> = (0..10)
+            .map(|i| {
+                serde_json::json!({
+                    "id": format!("m-{}", i),
+                    "agentName": "user",
+                    "text": format!("msg{}", i),
+                    "ts": i as f64,
+                })
+            })
+            .collect();
+        let path = conversation_messages_path(dir.path(), &conv.id);
+        fs::write(&path, serde_json::to_string(&messages).unwrap()).unwrap();
+
+        let page = load_history_paged(fp, conv.id, 3, None).unwrap();
+        assert_eq!(page.messages.len(), 3);
+        assert_eq!(page.messages[0].text, "msg7");
+        assert_eq!(page.messages[2].text, "msg9");
+        assert!(page.has_more, "older pages must be available");
+    }
+
+    #[test]
+    fn load_history_paged_before_ts_filters_strictly_lt() {
+        let dir = tempdir().unwrap();
+        let fp = folder_path(&dir);
+        let conv = create_conversation(fp.clone(), Some("X".into())).unwrap();
+        let messages: Vec<_> = (0..5)
+            .map(|i| {
+                serde_json::json!({
+                    "id": format!("m-{}", i),
+                    "agentName": "user",
+                    "text": format!("t{}", i),
+                    "ts": i as f64,
+                })
+            })
+            .collect();
+        let path = conversation_messages_path(dir.path(), &conv.id);
+        fs::write(&path, serde_json::to_string(&messages).unwrap()).unwrap();
+
+        // Strict `<`: ts=2.0 must be excluded; only ts=0,1 returned.
+        let page = load_history_paged(fp.clone(), conv.id.clone(), 50, Some(2.0)).unwrap();
+        let texts: Vec<_> = page.messages.iter().map(|m| m.text.clone()).collect();
+        assert_eq!(texts, vec!["t0", "t1"]);
+        assert!(!page.has_more);
+    }
+
+    #[test]
+    fn load_history_paged_has_more_false_when_total_le_limit() {
+        let dir = tempdir().unwrap();
+        let fp = folder_path(&dir);
+        let conv = create_conversation(fp.clone(), Some("X".into())).unwrap();
+        let messages = serde_json::json!([
+            { "id": "m-0", "agentName": "user", "text": "x", "ts": 0.0 }
+        ]);
+        let path = conversation_messages_path(dir.path(), &conv.id);
+        fs::write(&path, serde_json::to_string(&messages).unwrap()).unwrap();
+
+        let page = load_history_paged(fp, conv.id, 50, None).unwrap();
+        assert!(!page.has_more);
+        assert_eq!(page.messages.len(), 1);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Rename / delete failure paths (M8)
+    // ─────────────────────────────────────────────────────────────────────
+
+    #[test]
+    fn rename_nonexistent_conversation_returns_error() {
+        let dir = tempdir().unwrap();
+        let fp = folder_path(&dir);
+        let result = rename_conversation(fp, "no-such-id".into(), "X".into());
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("not found"));
+    }
+
+    #[test]
+    fn rename_truncates_titles_longer_than_200_chars() {
+        let dir = tempdir().unwrap();
+        let fp = folder_path(&dir);
+        let conv = create_conversation(fp.clone(), Some("X".into())).unwrap();
+        let long = "a".repeat(500);
+        let updated = rename_conversation(fp, conv.id, long).unwrap();
+        assert_eq!(updated.title.chars().count(), 200);
+    }
+
+    #[test]
+    fn delete_nonexistent_conversation_returns_error() {
+        let dir = tempdir().unwrap();
+        let fp = folder_path(&dir);
+        let result = delete_conversation(fp, "no-such-id".into());
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("not found"));
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Migration edge cases (M9)
+    // ─────────────────────────────────────────────────────────────────────
+
+    #[test]
+    fn migrate_writes_marker_when_no_legacy_file() {
+        let dir = tempdir().unwrap();
+        let result = migrate_legacy_room_history(dir.path());
+        assert!(result.is_none());
+        assert!(
+            migration_marker_path(dir.path()).exists(),
+            "marker must be written even when nothing to migrate, to prevent re-runs"
+        );
+    }
+
+    #[test]
+    fn migrate_skips_when_index_already_populated() {
+        let dir = tempdir().unwrap();
+        let fp = folder_path(&dir);
+        let existing = create_conversation(fp.clone(), Some("Pre".into())).unwrap();
+        let octopal = dir.path().join(".octopal");
+        fs::write(
+            octopal.join("room-history.json"),
+            r#"[{"id":"u-1","agentName":"user","text":"old","ts":1.0}]"#,
+        )
+        .unwrap();
+
+        let result = migrate_legacy_room_history(dir.path());
+        assert!(result.is_none(), "must not migrate over an existing index");
+
+        let index = read_conversations_index(dir.path());
+        assert_eq!(index.len(), 1);
+        assert_eq!(
+            index[0].id, existing.id,
+            "existing conversation must not be displaced"
+        );
+    }
+
+    #[test]
+    fn migrate_handles_malformed_legacy_history_as_empty() {
+        let dir = tempdir().unwrap();
+        let octopal = dir.path().join(".octopal");
+        fs::create_dir_all(&octopal).unwrap();
+        fs::write(octopal.join("room-history.json"), b"{not json").unwrap();
+
+        let id = migrate_legacy_room_history(dir.path()).expect("should still migrate");
+        let conv_file = conversation_messages_path(dir.path(), &id);
+        let parsed: Vec<serde_json::Value> =
+            serde_json::from_str(&fs::read_to_string(&conv_file).unwrap()).unwrap();
+        assert!(
+            parsed.is_empty(),
+            "malformed legacy must yield an empty conversation"
+        );
+        // Corrupt file should be moved aside rather than overwritten.
+        let entries: Vec<_> = fs::read_dir(&octopal)
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .map(|e| e.file_name().to_string_lossy().into_owned())
+            .collect();
+        assert!(
+            entries
+                .iter()
+                .any(|n| n.starts_with("room-history.json.corrupt-")),
+            "corrupt legacy file should be renamed aside, got: {:?}",
+            entries
+        );
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Index corruption handling (H2)
+    // ─────────────────────────────────────────────────────────────────────
+
+    #[test]
+    fn read_conversations_index_renames_corrupt_file_aside() {
+        let dir = tempdir().unwrap();
+        let octopal = dir.path().join(".octopal");
+        fs::create_dir_all(&octopal).unwrap();
+        let index_path = conversations_index_path(dir.path());
+        fs::write(&index_path, b"{not json").unwrap();
+
+        let result = read_conversations_index(dir.path());
+        assert!(result.is_empty());
+        assert!(
+            !index_path.exists(),
+            "corrupt index should be renamed away from the canonical path"
+        );
+        let entries: Vec<_> = fs::read_dir(&octopal)
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .map(|e| e.file_name().to_string_lossy().into_owned())
+            .collect();
+        assert!(
+            entries
+                .iter()
+                .any(|n| n.starts_with("conversations.json.corrupt-")),
+            "corrupt index should be moved aside, got: {:?}",
+            entries
+        );
     }
 }
