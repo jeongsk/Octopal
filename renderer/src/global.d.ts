@@ -102,6 +102,8 @@ interface AppSettings {
 
 interface Window {
   api: {
+    checkClaudeCli: () => Promise<{ installed: boolean; loggedIn: boolean }>
+    stopAgent: (runId: string) => Promise<{ ok: boolean; stopped?: boolean }>
     loadState: () => Promise<AppState>
     createWorkspace: (name: string) => Promise<AppState>
     renameWorkspace: (id: string, name: string) => Promise<AppState>
@@ -111,14 +113,29 @@ interface Window {
     removeFolder: (workspaceId: string, folderPath: string) => Promise<AppState>
     listOctos: (folderPath: string) => Promise<OctoFile[]>
     loadHistory: (folderPath: string) => Promise<HistoryMessage[]>
-    loadHistoryPaged: (params: { folderPath: string; limit: number; beforeTs?: number }) =>
-      Promise<{ messages: HistoryMessage[]; hasMore: boolean }>
+    loadHistoryPaged: (params: {
+      folderPath: string
+      conversationId: string
+      limit: number
+      beforeTs?: number
+    }) => Promise<{ messages: HistoryMessage[]; hasMore: boolean }>
     appendUserMessage: (params: {
       folderPath: string
+      conversationId: string
       message: { id: string; ts: number; text: string; attachments?: any[] }
     }) => Promise<{ ok: true }>
     readPendingState: (folderPath: string) => Promise<Record<string, any>>
     writePendingState: (folderPath: string, state: Record<string, any>) => Promise<void>
+    listConversations: (folderPath: string) => Promise<import('./types').Conversation[]>
+    createConversation: (params: { folderPath: string; title?: string }) =>
+      Promise<import('./types').Conversation>
+    renameConversation: (params: {
+      folderPath: string
+      conversationId: string
+      title: string
+    }) => Promise<import('./types').Conversation>
+    deleteConversation: (params: { folderPath: string; conversationId: string }) =>
+      Promise<void>
 
     createOcto: (params: { folderPath: string; name: string; role: string; prompt?: string; icon?: string; color?: string; permissions?: OctoPermissions; mcpServers?: McpServersConfig }) =>
       Promise<{ ok: true; path: string } | { ok: false; error: string }>
@@ -139,6 +156,7 @@ interface Window {
     sendMessage: (params: {
       folderPath: string
       octoPath: string
+      conversationId: string
       prompt: string
       userTs: number
       runId: string

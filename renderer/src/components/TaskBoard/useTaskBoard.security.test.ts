@@ -25,7 +25,6 @@ function makeTask(overrides: Partial<Task> & { status: TaskStatus }): Task {
   return {
     id: `task-${crypto.randomUUID()}`,
     title: 'Test task',
-    status: overrides.status,
     priority: 'medium',
     autoAssigned: false,
     createdAt: Date.now(),

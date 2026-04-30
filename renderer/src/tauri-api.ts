@@ -48,18 +48,26 @@ export function createTauriApi(): typeof window.api {
       invoke('list_octos', { folderPath }),
     loadHistory: (folderPath: string) =>
       invoke('load_history', { folderPath }),
-    loadHistoryPaged: (params: { folderPath: string; limit: number; beforeTs?: number }) =>
+    loadHistoryPaged: (params: {
+      folderPath: string
+      conversationId: string
+      limit: number
+      beforeTs?: number
+    }) =>
       invoke('load_history_paged', {
         folderPath: params.folderPath,
+        conversationId: params.conversationId,
         limit: params.limit,
         beforeTs: params.beforeTs ?? null,
       }),
     appendUserMessage: (params: {
       folderPath: string
+      conversationId: string
       message: { id: string; ts: number; text: string; attachments?: any[] }
     }) =>
       invoke('append_user_message', {
         folderPath: params.folderPath,
+        conversationId: params.conversationId,
         id: params.message.id,
         ts: params.message.ts,
         text: params.message.text,
@@ -69,6 +77,30 @@ export function createTauriApi(): typeof window.api {
       invoke('read_pending_state', { folderPath }),
     writePendingState: (folderPath: string, state: Record<string, any>) =>
       invoke('write_pending_state', { folderPath, state }),
+
+    // ── Conversations ──
+    listConversations: (folderPath: string) =>
+      invoke('list_conversations', { folderPath }),
+    createConversation: (params: { folderPath: string; title?: string }) =>
+      invoke('create_conversation', {
+        folderPath: params.folderPath,
+        title: params.title ?? null,
+      }),
+    renameConversation: (params: {
+      folderPath: string
+      conversationId: string
+      title: string
+    }) =>
+      invoke('rename_conversation', {
+        folderPath: params.folderPath,
+        conversationId: params.conversationId,
+        title: params.title,
+      }),
+    deleteConversation: (params: { folderPath: string; conversationId: string }) =>
+      invoke('delete_conversation', {
+        folderPath: params.folderPath,
+        conversationId: params.conversationId,
+      }),
 
     // ── Octo CRUD ──
     createOcto: (params) =>
@@ -101,6 +133,7 @@ export function createTauriApi(): typeof window.api {
       invoke('send_message', {
         folderPath: params.folderPath,
         octoPath: params.octoPath,
+        conversationId: params.conversationId,
         prompt: params.prompt,
         userTs: params.userTs,
         runId: params.runId,

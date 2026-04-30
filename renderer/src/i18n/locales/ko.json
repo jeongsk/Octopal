@@ -169,6 +169,17 @@
     "collapseAgents": "에이전트 패널 숨기기",
     "expandAgents": "에이전트 패널 보기"
   },
+  "conversations": {
+    "default": "기본",
+    "untitled": "새 대화",
+    "newConversation": "새 대화",
+    "newConversationTitle": "새 대화 시작",
+    "rename": "이름 바꾸기",
+    "delete": "삭제",
+    "deleteConfirm": "대화 \"{{title}}\"을(를) 삭제할까요? 되돌릴 수 없습니다.",
+    "switchHint": "대화 열기",
+    "addNew": "+ 새 대화"
+  },
   "agents": {
     "title": "에이전트",
     "addAgent": "에이전트 추가",
@@ -223,6 +234,11 @@
       "hint": "워크스페이스를 만들어 시작하세요. 업무, 사이드 프로젝트, 실험 등 다양한 맥락에 맞는 워크스페이스를 여러 개 만들 수 있습니다.",
       "nameLabel": "워크스페이스 이름",
       "namePlaceholder": "개인"
+    },
+    "renameConversation": {
+      "title": "대화 이름 바꾸기",
+      "nameLabel": "제목",
+      "namePlaceholder": "예: 버그 수정 #42"
     },
     "openFolder": {
       "desc": "프로젝트 폴더를 열어 시작하세요.",

@@ -169,6 +169,17 @@
     "collapseAgents": "Hide agents panel",
     "expandAgents": "Show agents panel"
   },
+  "conversations": {
+    "default": "Default",
+    "untitled": "New conversation",
+    "newConversation": "New conversation",
+    "newConversationTitle": "Start a new conversation",
+    "rename": "Rename",
+    "delete": "Delete",
+    "deleteConfirm": "Delete conversation \"{{title}}\"? This cannot be undone.",
+    "switchHint": "Click to open conversation",
+    "addNew": "+ New conversation"
+  },
   "agents": {
     "title": "Agents",
     "addAgent": "Add agent",
@@ -223,6 +234,11 @@
       "hint": "Start by creating a workspace. You can have multiple workspaces for different contexts — work, side projects, experiments.",
       "nameLabel": "Workspace name",
       "namePlaceholder": "Personal"
+    },
+    "renameConversation": {
+      "title": "Rename conversation",
+      "nameLabel": "Title",
+      "namePlaceholder": "e.g. Bug fix #42"
     },
     "openFolder": {
       "desc": "Open a project folder to get started.",

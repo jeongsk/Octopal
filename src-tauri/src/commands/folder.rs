@@ -1,12 +1,14 @@
+use crate::commands::agent::sanitize_prompt_field;
 use crate::commands::octo::sanitize_role;
-use crate::state::{AppState, HistoryMessage, ManagedState, OctoFile};
+use crate::state::{AppState, ConversationMeta, HistoryMessage, ManagedState, OctoFile};
 use notify::{RecursiveMode, Watcher};
 use serde::Serialize;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex as StdMutex};
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter, Manager, State};
+use uuid::Uuid;
 
 #[derive(Serialize)]
 pub struct PagedHistory {
@@ -102,7 +104,16 @@ fn ensure_folder_watcher(folder_path: &str, state: &State<'_, ManagedState>, app
             let has_history = event.paths.iter().any(|p| {
                 p.file_name().and_then(|n| n.to_str()) == Some("room-history.json")
             });
-            if !has_agent_file && !has_history {
+            let has_conversation = event.paths.iter().any(|p| {
+                let name = p.file_name().and_then(|n| n.to_str());
+                if name == Some("conversations.json") {
+                    return true;
+                }
+                // Anything inside .octopal/conversations/
+                p.components().any(|c| c.as_os_str() == "conversations")
+                    && p.extension().and_then(|e| e.to_str()) == Some("json")
+            });
+            if !has_agent_file && !has_history && !has_conversation {
                 return;
             }
             {
@@ -147,10 +158,16 @@ fn ensure_folder_watcher(folder_path: &str, state: &State<'_, ManagedState>, app
         watch_ok = true;
     }
 
-    // Watch .octopal/ subdir for room-history.json
+    // Watch .octopal/ subdir for room-history.json + conversations.json
     let octopal_dir = Path::new(folder_path).join(".octopal");
     if octopal_dir.is_dir() {
         let _ = watcher.watch(&octopal_dir, RecursiveMode::NonRecursive);
+    }
+    // Watch .octopal/conversations/ recursively so per-conversation file
+    // changes (writes from the agent process) are picked up.
+    let conv_dir = octopal_dir.join("conversations");
+    if conv_dir.is_dir() {
+        let _ = watcher.watch(&conv_dir, RecursiveMode::Recursive);
     }
     if watch_ok {
         watchers.insert(folder_path.to_string(), watcher);
@@ -475,6 +492,9 @@ pub fn list_octos(
     Ok(octos)
 }
 
+/// Legacy: loads `room-history.json` directly. Retained for backwards
+/// compatibility with any caller that hasn't moved to conversation-aware
+/// paging yet. New code should use `load_history_paged`.
 #[tauri::command]
 pub fn load_history(folder_path: String) -> Result<Vec<HistoryMessage>, String> {
     let history_file = Path::new(&folder_path)
@@ -491,12 +511,11 @@ pub fn load_history(folder_path: String) -> Result<Vec<HistoryMessage>, String> 
 #[tauri::command]
 pub fn load_history_paged(
     folder_path: String,
+    conversation_id: String,
     limit: usize,
     before_ts: Option<f64>,
 ) -> Result<PagedHistory, String> {
-    let history_file = Path::new(&folder_path)
-        .join(".octopal")
-        .join("room-history.json");
+    let history_file = conversation_messages_path(Path::new(&folder_path), &conversation_id);
     if !history_file.exists() {
         return Ok(PagedHistory {
             messages: vec![],
@@ -553,16 +572,18 @@ pub fn write_pending_state(
 #[tauri::command]
 pub fn append_user_message(
     folder_path: String,
+    conversation_id: String,
     id: String,
     ts: f64,
     text: String,
     attachments: Option<serde_json::Value>,
 ) -> Result<serde_json::Value, String> {
-    let octopal_dir = Path::new(&folder_path).join(".octopal");
-    fs::create_dir_all(&octopal_dir).map_err(|e| e.to_string())?;
-    let history_file = octopal_dir.join("room-history.json");
+    let folder = Path::new(&folder_path);
+    let conv_dir = conversations_dir(folder);
+    fs::create_dir_all(&conv_dir).map_err(|e| e.to_string())?;
+    let history_file = conversation_messages_path(folder, &conversation_id);
 
-    maybe_rotate_room_history(&history_file);
+    maybe_rotate_history(&history_file);
 
     let mut messages: Vec<serde_json::Value> = if history_file.exists() {
         let content = fs::read_to_string(&history_file).map_err(|e| e.to_string())?;
@@ -585,18 +606,20 @@ pub fn append_user_message(
     let json = serde_json::to_string_pretty(&messages).map_err(|e| e.to_string())?;
     fs::write(&history_file, json).map_err(|e| e.to_string())?;
 
+    update_conversation_meta(folder, &conversation_id, &text, ts).ok();
+
     Ok(serde_json::json!({ "ok": true }))
 }
 
-/// Archive `room-history.json` when it gets too large.
+/// Archive a JSON history file when it gets too large.
 ///
 /// When the file exceeds `MAX_SIZE_BYTES`, we split it: the oldest 80% of
-/// messages move to `archive/room-history-<ts>.json`, the newest 20% stay in
-/// `room-history.json`. This keeps recent scrolling fast without losing
-/// anything — users can still browse old archives manually.
+/// messages move to `archive/<basename>-<ts>.json`, the newest 20% stay in
+/// place. This keeps recent scrolling fast without losing anything — users
+/// can still browse old archives manually.
 ///
 /// Called opportunistically from append paths; failure is non-fatal.
-pub fn maybe_rotate_room_history(history_file: &Path) {
+pub fn maybe_rotate_history(history_file: &Path) {
     /// 10 MB — rotate when the file crosses this. A typical chat turn with
     /// no attachments is 1-3 KB, so this covers ~3000-10000 turns before
     /// rotation kicks in.
@@ -635,18 +658,23 @@ pub fn maybe_rotate_room_history(history_file: &Path) {
         return;
     }
 
+    let stem = history_file
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("history");
+
     let ts = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_millis())
         .unwrap_or(0);
-    let archive_path = archive_dir.join(format!("room-history-{}.json", ts));
+    let archive_path = archive_dir.join(format!("{}-{}.json", stem, ts));
 
     if let Ok(archive_json) = serde_json::to_string_pretty(&archive) {
         if fs::write(&archive_path, archive_json).is_ok() {
             if let Ok(keep_json) = serde_json::to_string_pretty(&keep) {
                 let _ = fs::write(history_file, keep_json);
                 eprintln!(
-                    "[octopal] rotated room-history: {} msgs archived to {}",
+                    "[octopal] rotated history: {} msgs archived to {}",
                     archive.len(),
                     archive_path.display()
                 );
@@ -655,3 +683,497 @@ pub fn maybe_rotate_room_history(history_file: &Path) {
     }
 }
 
+// ─────────────────────────────────────────────────────────────────────
+// Conversation primitives
+// ─────────────────────────────────────────────────────────────────────
+
+fn conversations_dir(folder: &Path) -> PathBuf {
+    folder.join(".octopal").join("conversations")
+}
+
+fn conversations_index_path(folder: &Path) -> PathBuf {
+    folder.join(".octopal").join("conversations.json")
+}
+
+fn conversation_messages_path(folder: &Path, id: &str) -> PathBuf {
+    conversations_dir(folder).join(format!("{}.json", id))
+}
+
+fn migration_marker_path(folder: &Path) -> PathBuf {
+    folder.join(".octopal").join(".migrated_v1")
+}
+
+fn read_conversations_index(folder: &Path) -> Vec<ConversationMeta> {
+    let path = conversations_index_path(folder);
+    if !path.exists() {
+        return vec![];
+    }
+    fs::read_to_string(&path)
+        .ok()
+        .and_then(|s| serde_json::from_str::<Vec<ConversationMeta>>(&s).ok())
+        .unwrap_or_default()
+}
+
+fn write_conversations_index(folder: &Path, list: &[ConversationMeta]) -> Result<(), String> {
+    let octopal_dir = folder.join(".octopal");
+    fs::create_dir_all(&octopal_dir).map_err(|e| e.to_string())?;
+    let path = conversations_index_path(folder);
+    let json = serde_json::to_string_pretty(list).map_err(|e| e.to_string())?;
+    fs::write(&path, json).map_err(|e| e.to_string())
+}
+
+fn now_ms() -> f64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as f64)
+        .unwrap_or(0.0)
+}
+
+/// Public wrapper used by `agent.rs` to refresh the conversation index entry
+/// after persisting an assistant response. Never panics; failure is logged
+/// upstream as a non-fatal event.
+pub fn touch_conversation_meta(
+    folder_path: &str,
+    conversation_id: &str,
+    last_text: &str,
+    ts: f64,
+) -> Result<(), String> {
+    update_conversation_meta(Path::new(folder_path), conversation_id, last_text, ts)
+}
+
+/// Update an existing index entry with the latest message snippet, count, and
+/// timestamp. No-op when the entry is missing (e.g. orphan write).
+fn update_conversation_meta(
+    folder: &Path,
+    conversation_id: &str,
+    last_text: &str,
+    ts: f64,
+) -> Result<(), String> {
+    let mut list = read_conversations_index(folder);
+    let messages_path = conversation_messages_path(folder, conversation_id);
+    let count = fs::read_to_string(&messages_path)
+        .ok()
+        .and_then(|s| serde_json::from_str::<Vec<serde_json::Value>>(&s).ok())
+        .map(|v| v.len() as u32)
+        .unwrap_or(0);
+
+    let snippet: String = last_text.chars().take(120).collect();
+    let mut updated = false;
+    for meta in list.iter_mut() {
+        if meta.id == conversation_id {
+            meta.updated_at = ts;
+            meta.last_snippet = if snippet.is_empty() { None } else { Some(snippet.clone()) };
+            meta.message_count = count;
+            updated = true;
+            break;
+        }
+    }
+    if updated {
+        write_conversations_index(folder, &list)?;
+    }
+    Ok(())
+}
+
+/// Migrate legacy `room-history.json` into a freshly-minted "Default"
+/// conversation. Idempotent: skips if `.migrated_v1` marker exists or if the
+/// index already has entries.
+///
+/// Returns the new conversation id when migration ran, `None` otherwise.
+fn migrate_legacy_room_history(folder: &Path) -> Option<String> {
+    let octopal_dir = folder.join(".octopal");
+    let marker = migration_marker_path(folder);
+    if marker.exists() {
+        return None;
+    }
+
+    let legacy = octopal_dir.join("room-history.json");
+
+    // Marker is also written when there's nothing to migrate, so we don't
+    // re-check forever on every list call.
+    if !legacy.exists() {
+        let _ = fs::create_dir_all(&octopal_dir);
+        let _ = fs::write(&marker, b"v1");
+        return None;
+    }
+
+    let existing = read_conversations_index(folder);
+    if !existing.is_empty() {
+        let _ = fs::create_dir_all(&octopal_dir);
+        let _ = fs::write(&marker, b"v1");
+        return None;
+    }
+
+    let messages: Vec<serde_json::Value> = fs::read_to_string(&legacy)
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_default();
+
+    let id = Uuid::new_v4().to_string();
+    let conv_dir = conversations_dir(folder);
+    if fs::create_dir_all(&conv_dir).is_err() {
+        return None;
+    }
+
+    let dest = conversation_messages_path(folder, &id);
+    let messages_json =
+        serde_json::to_string_pretty(&messages).unwrap_or_else(|_| "[]".to_string());
+    if fs::write(&dest, messages_json).is_err() {
+        return None;
+    }
+
+    let now = now_ms();
+    let last_snippet = messages
+        .last()
+        .and_then(|m| m.get("text").and_then(|v| v.as_str()))
+        .map(|s| s.chars().take(120).collect::<String>())
+        .filter(|s| !s.is_empty());
+
+    let meta = ConversationMeta {
+        id: id.clone(),
+        title: "Default".to_string(),
+        created_at: now,
+        updated_at: now,
+        last_snippet,
+        message_count: messages.len() as u32,
+    };
+
+    if write_conversations_index(folder, &[meta]).is_err() {
+        return None;
+    }
+
+    let _ = fs::write(&marker, b"v1");
+    Some(id)
+}
+
+#[tauri::command]
+pub fn list_conversations(folder_path: String) -> Result<Vec<ConversationMeta>, String> {
+    let folder = Path::new(&folder_path);
+    fs::create_dir_all(folder.join(".octopal")).map_err(|e| e.to_string())?;
+    fs::create_dir_all(conversations_dir(folder)).map_err(|e| e.to_string())?;
+
+    migrate_legacy_room_history(folder);
+
+    let mut list = read_conversations_index(folder);
+
+    // Invariant: every folder must have at least one conversation. Seed an
+    // empty one when the index is empty (e.g. brand-new folder).
+    if list.is_empty() {
+        let id = Uuid::new_v4().to_string();
+        let now = now_ms();
+        let meta = ConversationMeta {
+            id: id.clone(),
+            title: "New conversation".to_string(),
+            created_at: now,
+            updated_at: now,
+            last_snippet: None,
+            message_count: 0,
+        };
+        let messages_path = conversation_messages_path(folder, &id);
+        fs::write(&messages_path, b"[]").map_err(|e| e.to_string())?;
+        write_conversations_index(folder, &[meta.clone()])?;
+        list = vec![meta];
+    }
+
+    list.sort_by(|a, b| {
+        b.updated_at
+            .partial_cmp(&a.updated_at)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+    Ok(list)
+}
+
+#[tauri::command]
+pub fn create_conversation(
+    folder_path: String,
+    title: Option<String>,
+) -> Result<ConversationMeta, String> {
+    let folder = Path::new(&folder_path);
+    fs::create_dir_all(conversations_dir(folder)).map_err(|e| e.to_string())?;
+
+    let id = Uuid::new_v4().to_string();
+    let now = now_ms();
+    let raw_title = title.unwrap_or_else(|| "New conversation".to_string());
+    let mut clean = sanitize_prompt_field(&raw_title);
+    if clean.is_empty() {
+        clean = "New conversation".to_string();
+    }
+
+    let meta = ConversationMeta {
+        id: id.clone(),
+        title: clean,
+        created_at: now,
+        updated_at: now,
+        last_snippet: None,
+        message_count: 0,
+    };
+
+    let messages_path = conversation_messages_path(folder, &id);
+    fs::write(&messages_path, b"[]").map_err(|e| e.to_string())?;
+
+    let mut list = read_conversations_index(folder);
+    list.push(meta.clone());
+    write_conversations_index(folder, &list)?;
+
+    Ok(meta)
+}
+
+#[tauri::command]
+pub fn rename_conversation(
+    folder_path: String,
+    conversation_id: String,
+    title: String,
+) -> Result<ConversationMeta, String> {
+    let folder = Path::new(&folder_path);
+    let mut list = read_conversations_index(folder);
+
+    let mut clean = sanitize_prompt_field(&title);
+    if clean.is_empty() {
+        return Err("Title cannot be empty".to_string());
+    }
+    if clean.chars().count() > 200 {
+        clean = clean.chars().take(200).collect();
+    }
+
+    let mut updated: Option<ConversationMeta> = None;
+    for meta in list.iter_mut() {
+        if meta.id == conversation_id {
+            meta.title = clean.clone();
+            meta.updated_at = now_ms();
+            updated = Some(meta.clone());
+            break;
+        }
+    }
+
+    let meta = updated.ok_or_else(|| format!("Conversation {} not found", conversation_id))?;
+    write_conversations_index(folder, &list)?;
+    Ok(meta)
+}
+
+#[tauri::command]
+pub fn delete_conversation(
+    folder_path: String,
+    conversation_id: String,
+) -> Result<(), String> {
+    let folder = Path::new(&folder_path);
+    let mut list = read_conversations_index(folder);
+
+    let before = list.len();
+    list.retain(|m| m.id != conversation_id);
+    if list.len() == before {
+        return Err(format!("Conversation {} not found", conversation_id));
+    }
+
+    let messages_path = conversation_messages_path(folder, &conversation_id);
+    if messages_path.exists() {
+        let _ = fs::remove_file(&messages_path);
+    }
+
+    // Last-conversation invariant: never let the index become empty.
+    if list.is_empty() {
+        let id = Uuid::new_v4().to_string();
+        let now = now_ms();
+        let meta = ConversationMeta {
+            id: id.clone(),
+            title: "New conversation".to_string(),
+            created_at: now,
+            updated_at: now,
+            last_snippet: None,
+            message_count: 0,
+        };
+        let new_messages_path = conversation_messages_path(folder, &id);
+        fs::write(&new_messages_path, b"[]").map_err(|e| e.to_string())?;
+        list.push(meta);
+    }
+
+    write_conversations_index(folder, &list)?;
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::tempdir;
+
+    fn folder_path(dir: &tempfile::TempDir) -> String {
+        dir.path().to_string_lossy().to_string()
+    }
+
+    #[test]
+    fn migrate_legacy_room_history_creates_default_conversation() {
+        let dir = tempdir().unwrap();
+        let octopal = dir.path().join(".octopal");
+        fs::create_dir_all(&octopal).unwrap();
+
+        let messages = serde_json::json!([
+            { "id": "u-1", "agentName": "user", "text": "hello", "ts": 1.0 },
+            { "id": "a-1", "agentName": "assistant", "text": "hi", "ts": 2.0 },
+        ]);
+        fs::write(
+            octopal.join("room-history.json"),
+            serde_json::to_string_pretty(&messages).unwrap(),
+        )
+        .unwrap();
+
+        let id = migrate_legacy_room_history(dir.path()).expect("migration should run");
+
+        let index = read_conversations_index(dir.path());
+        assert_eq!(index.len(), 1);
+        assert_eq!(index[0].title, "Default");
+        assert_eq!(index[0].id, id);
+        assert_eq!(index[0].message_count, 2);
+
+        let conv_file = conversation_messages_path(dir.path(), &id);
+        let content = fs::read_to_string(&conv_file).unwrap();
+        let parsed: Vec<serde_json::Value> = serde_json::from_str(&content).unwrap();
+        assert_eq!(parsed.len(), 2);
+
+        assert!(migration_marker_path(dir.path()).exists());
+    }
+
+    #[test]
+    fn migrate_is_idempotent() {
+        let dir = tempdir().unwrap();
+        let octopal = dir.path().join(".octopal");
+        fs::create_dir_all(&octopal).unwrap();
+        fs::write(
+            octopal.join("room-history.json"),
+            r#"[{"id":"u-1","agentName":"user","text":"x","ts":1.0}]"#,
+        )
+        .unwrap();
+
+        let first = migrate_legacy_room_history(dir.path());
+        let second = migrate_legacy_room_history(dir.path());
+        assert!(first.is_some());
+        assert!(second.is_none(), "second migration should be a no-op");
+
+        // Index still has one entry
+        assert_eq!(read_conversations_index(dir.path()).len(), 1);
+    }
+
+    #[test]
+    fn create_conversation_appends_to_index_and_creates_file() {
+        let dir = tempdir().unwrap();
+        let fp = folder_path(&dir);
+
+        // First call seeds an empty conversation via list_conversations
+        list_conversations(fp.clone()).unwrap();
+        let before = read_conversations_index(dir.path()).len();
+
+        let conv = create_conversation(fp.clone(), Some("Bug fix".into())).unwrap();
+        assert_eq!(conv.title, "Bug fix");
+        assert_eq!(conv.message_count, 0);
+
+        let after = read_conversations_index(dir.path());
+        assert_eq!(after.len(), before + 1);
+        assert!(after.iter().any(|c| c.id == conv.id && c.title == "Bug fix"));
+
+        let path = conversation_messages_path(dir.path(), &conv.id);
+        assert!(path.exists());
+        assert_eq!(fs::read_to_string(&path).unwrap(), "[]");
+    }
+
+    #[test]
+    fn rename_conversation_updates_index() {
+        let dir = tempdir().unwrap();
+        let fp = folder_path(&dir);
+        let conv = create_conversation(fp.clone(), Some("Old".into())).unwrap();
+
+        let updated =
+            rename_conversation(fp.clone(), conv.id.clone(), "Renamed".into()).unwrap();
+        assert_eq!(updated.title, "Renamed");
+
+        let index = read_conversations_index(dir.path());
+        let entry = index.iter().find(|c| c.id == conv.id).unwrap();
+        assert_eq!(entry.title, "Renamed");
+    }
+
+    #[test]
+    fn rename_rejects_empty_title() {
+        let dir = tempdir().unwrap();
+        let fp = folder_path(&dir);
+        let conv = create_conversation(fp.clone(), Some("X".into())).unwrap();
+
+        let result = rename_conversation(fp.clone(), conv.id.clone(), "   ".into());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn delete_conversation_removes_file_and_index() {
+        let dir = tempdir().unwrap();
+        let fp = folder_path(&dir);
+        let a = create_conversation(fp.clone(), Some("A".into())).unwrap();
+        let b = create_conversation(fp.clone(), Some("B".into())).unwrap();
+
+        delete_conversation(fp.clone(), a.id.clone()).unwrap();
+
+        let index = read_conversations_index(dir.path());
+        assert!(index.iter().all(|c| c.id != a.id));
+        assert!(index.iter().any(|c| c.id == b.id));
+        assert!(!conversation_messages_path(dir.path(), &a.id).exists());
+    }
+
+    #[test]
+    fn delete_last_conversation_creates_replacement() {
+        let dir = tempdir().unwrap();
+        let fp = folder_path(&dir);
+        let only = create_conversation(fp.clone(), Some("Only".into())).unwrap();
+
+        delete_conversation(fp.clone(), only.id.clone()).unwrap();
+
+        // Last-conversation invariant: index must never become empty.
+        let index = read_conversations_index(dir.path());
+        assert_eq!(index.len(), 1);
+        assert_ne!(index[0].id, only.id);
+    }
+
+    #[test]
+    fn append_user_message_updates_last_snippet_and_message_count() {
+        let dir = tempdir().unwrap();
+        let fp = folder_path(&dir);
+        let conv = create_conversation(fp.clone(), Some("X".into())).unwrap();
+
+        append_user_message(
+            fp.clone(),
+            conv.id.clone(),
+            "u-1".into(),
+            12345.0,
+            "Hello there".into(),
+            None,
+        )
+        .unwrap();
+
+        let index = read_conversations_index(dir.path());
+        let entry = index.iter().find(|c| c.id == conv.id).unwrap();
+        assert_eq!(entry.message_count, 1);
+        assert_eq!(entry.last_snippet.as_deref(), Some("Hello there"));
+        assert_eq!(entry.updated_at, 12345.0);
+    }
+
+    #[test]
+    fn list_conversations_seeds_one_for_empty_folder() {
+        let dir = tempdir().unwrap();
+        let fp = folder_path(&dir);
+        let list = list_conversations(fp).unwrap();
+        assert_eq!(list.len(), 1);
+        assert_eq!(list[0].message_count, 0);
+    }
+
+    #[test]
+    fn list_conversations_sorts_by_updated_at_desc() {
+        let dir = tempdir().unwrap();
+        let fp = folder_path(&dir);
+        let a = create_conversation(fp.clone(), Some("A".into())).unwrap();
+        // Force a divergence in updated_at
+        std::thread::sleep(std::time::Duration::from_millis(5));
+        let b = create_conversation(fp.clone(), Some("B".into())).unwrap();
+
+        let list = list_conversations(fp).unwrap();
+        // Most recent first
+        assert!(list.iter().any(|c| c.id == a.id));
+        assert!(list.iter().any(|c| c.id == b.id));
+        // Find the position of a vs b — b should not appear after a
+        let pos_a = list.iter().position(|c| c.id == a.id).unwrap();
+        let pos_b = list.iter().position(|c| c.id == b.id).unwrap();
+        assert!(pos_b <= pos_a, "B (newer) should sort before or equal to A");
+    }
+}

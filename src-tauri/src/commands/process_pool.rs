@@ -5,9 +5,14 @@
 //! processes alive and communicate via stdin/stdout using the
 //! `--input-format stream-json` / `--output-format stream-json` protocol.
 //!
-//! Each process is keyed by `"{folder}::{agent}"` (or `"__dispatcher__"`)
-//! and reused across messages. When the agent's config changes (model,
-//! permissions, MCP), the old process is killed and a new one is created.
+//! Each agent process is keyed by `"{folder}::{agent}::{conversation_id}"`
+//! so each conversation maintains its own session continuity (a "fresh
+//! chat" must mean a fresh Claude session, not just an empty UI). The
+//! dispatcher process uses `"__dispatcher__::{folder}"` and is intentionally
+//! NOT conversation-keyed — it's one-shot per route call.
+//!
+//! When the agent's config changes (model, permissions, MCP), the old
+//! process is killed and a new one is created.
 
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
@@ -59,9 +64,16 @@ impl ProcessEntry {
     }
 }
 
+/// Build the pool key for an agent process. Each conversation has its own
+/// long-lived Claude CLI process, so switching conversations transparently
+/// swaps the active session.
+pub fn pool_key(folder: &str, agent: &str, conversation_id: &str) -> String {
+    format!("{}::{}::{}", folder, agent, conversation_id)
+}
+
 /// Manages a pool of persistent Claude CLI processes.
 pub struct ProcessPool {
-    /// key: "folder::agent_name" or "__dispatcher__::folder"
+    /// key: "{folder}::{agent}::{conversation_id}" or "__dispatcher__::{folder}"
     processes: Mutex<HashMap<String, ProcessEntry>>,
 }
 
@@ -471,6 +483,49 @@ mod tests {
     // ────────────────────────────────────────────────────────
     // Dispatcher pool key isolation
     // ────────────────────────────────────────────────────────
+
+    #[test]
+    fn pool_key_includes_conversation_id() {
+        let key = pool_key("/folder", "developer", "abc-123");
+        assert_eq!(key, "/folder::developer::abc-123");
+    }
+
+    #[test]
+    fn pool_key_distinct_per_conversation() {
+        let a = pool_key("/folder", "developer", "conv-a");
+        let b = pool_key("/folder", "developer", "conv-b");
+        assert_ne!(a, b, "different conversation ids must produce different keys");
+    }
+
+    #[test]
+    fn same_folder_same_agent_different_conversation_keys_are_isolated() {
+        let pool = ProcessPool::new();
+        let key_a = pool_key("/folder", "developer", "conv-a");
+        let key_b = pool_key("/folder", "developer", "conv-b");
+
+        let mut entry_a = dummy_process_real_pid();
+        entry_a.config_hash = 11;
+        let pid_a = entry_a.pid;
+
+        let mut entry_b = dummy_process_real_pid();
+        entry_b.config_hash = 22;
+        let pid_b = entry_b.pid;
+
+        pool.put(key_a.clone(), entry_a);
+        pool.put(key_b.clone(), entry_b);
+
+        // Each conversation owns an independent process entry.
+        let mut taken_a = pool.take(&key_a).unwrap();
+        assert_eq!(taken_a.pid, pid_a);
+        assert_eq!(taken_a.config_hash, 11);
+
+        let mut taken_b = pool.take(&key_b).unwrap();
+        assert_eq!(taken_b.pid, pid_b);
+        assert_eq!(taken_b.config_hash, 22);
+
+        taken_a.kill();
+        taken_b.kill();
+    }
 
     #[test]
     fn dispatcher_and_agent_use_separate_keys() {

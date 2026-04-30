@@ -60,6 +60,25 @@ pub struct OctoPermissions {
     pub deny_paths: Option<Vec<String>>,
 }
 
+/// Metadata for a conversation within a folder.
+///
+/// Persisted as one entry inside `<folder>/.octopal/conversations.json`. The
+/// actual messages live in `<folder>/.octopal/conversations/<id>.json` keyed
+/// by `id`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConversationMeta {
+    pub id: String,
+    pub title: String,
+    #[serde(rename = "createdAt")]
+    pub created_at: f64,
+    #[serde(rename = "updatedAt")]
+    pub updated_at: f64,
+    #[serde(rename = "lastSnippet", default, skip_serializing_if = "Option::is_none")]
+    pub last_snippet: Option<String>,
+    #[serde(rename = "messageCount", default)]
+    pub message_count: u32,
+}
+
 /// History message stored in .octo files
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HistoryMessage {
