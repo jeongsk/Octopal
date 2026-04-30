@@ -5,7 +5,7 @@
   "identifier": "com.studioh.octopal",
   "build": {
     "beforeDevCommand": "npm run dev:renderer",
-    "devUrl": "http://localhost:5173",
+    "devUrl": "http://localhost:15173",
     "beforeBuildCommand": "vite build --config renderer/vite.config.ts",
     "frontendDist": "../dist/renderer"
   },
