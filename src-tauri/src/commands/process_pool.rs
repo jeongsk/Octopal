@@ -83,14 +83,6 @@ impl ProcessPool {
         self.processes.lock().unwrap().insert(key, entry);
     }
 
-    /// Remove and kill a process by key.
-    pub fn remove(&self, key: &str) {
-        let mut procs = self.processes.lock().unwrap();
-        if let Some(mut entry) = procs.remove(key) {
-            entry.kill();
-        }
-    }
-
     /// Remove a process by PID (used when stop_agent is called).
     /// Does NOT kill the process — the caller handles that.
     pub fn remove_by_pid(&self, pid: u32) {
@@ -260,34 +252,6 @@ mod tests {
 
         // e1's process is now orphaned — kill it manually
         unsafe { libc::kill(pid1 as i32, libc::SIGTERM); }
-    }
-
-    // ────────────────────────────────────────────────────────
-    // ProcessPool: remove
-    // ────────────────────────────────────────────────────────
-
-    #[test]
-    fn pool_remove_kills_and_removes() {
-        let pool = ProcessPool::new();
-        let entry = dummy_process_real_pid();
-        let pid = entry.pid;
-        pool.put("key".to_string(), entry);
-
-        pool.remove("key");
-
-        // Key should no longer exist
-        assert!(pool.take("key").is_none());
-
-        // Process should be dead (give it a moment)
-        std::thread::sleep(std::time::Duration::from_millis(50));
-        let status = unsafe { libc::kill(pid as i32, 0) };
-        assert_ne!(status, 0, "process should be dead after remove");
-    }
-
-    #[test]
-    fn pool_remove_nonexistent_key_is_noop() {
-        let pool = ProcessPool::new();
-        pool.remove("nonexistent"); // should not panic
     }
 
     // ────────────────────────────────────────────────────────
