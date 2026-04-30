@@ -148,7 +148,12 @@
     "pastedTextError": "Failed to load text",
     "chars": "chars",
     "showMore": "Show more",
-    "showLess": "Show less"
+    "showLess": "Show less",
+    "skillsHeader": "Skills",
+    "shortcutsHeader": "Shortcuts",
+    "skillSourceWorkspace": "workspace",
+    "skillSourceUser": "user",
+    "skillSourceAgent": "agent · {{name}}"
   },
   "sidebar": {
     "wiki": "Wiki",

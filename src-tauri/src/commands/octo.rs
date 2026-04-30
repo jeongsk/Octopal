@@ -104,6 +104,9 @@ pub fn create_octo(
             error: Some(format!("Failed to create agent folder: {}", e)),
         };
     }
+    // Pre-create the per-agent skills directory so Claude CLI's watcher picks
+    // up the very first skill added without requiring an agent restart.
+    let _ = fs::create_dir_all(agent_dir.join(".claude").join("skills"));
     let config_path = agent_dir.join("config.json");
     let prompt_path = agent_dir.join("prompt.md");
 

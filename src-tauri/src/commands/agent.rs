@@ -542,6 +542,16 @@ pub async fn send_message(
         );
     }
 
+    // Per-agent skills discovery: register the agent's own directory so the
+    // Claude CLI auto-loads any `.claude/skills/` inside it. Workspace-level
+    // skills under `<folder_path>/.claude/skills/` are already discovered via
+    // cwd. See https://code.claude.com/docs/en/skills ("Skills from additional
+    // directories"): --add-dir is the supported escape hatch for skill folders.
+    if let Some(agent_dir) = Path::new(&octo_path).parent() {
+        claude_args.push("--add-dir".to_string());
+        claude_args.push(agent_dir.to_string_lossy().to_string());
+    }
+
     // Permissions args — if any grant is set, use --dangerously-skip-permissions
     // and selectively block the ungranted tools. If no grants at all, claude's
     // default permission prompts still apply (the agent just can't do much).

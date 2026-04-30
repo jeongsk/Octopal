@@ -218,6 +218,8 @@ pub fn run() {
             // Model probe (detects newest available Opus, e.g. 4.7)
             commands::model_probe::get_best_opus_model,
             commands::model_probe::reprobe_best_opus_model,
+            // Skills (slash command autocomplete)
+            commands::skills::list_skills,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

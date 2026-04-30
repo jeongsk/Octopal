@@ -377,8 +377,9 @@ export function ChatPanel({
   const [failedImages, setFailedImages] = useState<Set<string>>(new Set())
   const [showScrollDown, setShowScrollDown] = useState(false)
   const [mentionIndex, setMentionIndex] = useState(0)
-  const [shortcutHints, setShortcutHints] = useState<TextShortcut[]>([])
-  const [shortcutHintIndex, setShortcutHintIndex] = useState(0)
+  const [skills, setSkills] = useState<SlashSkill[]>([])
+  const [slashHintsOpen, setSlashHintsOpen] = useState(false)
+  const [slashHintIndex, setSlashHintIndex] = useState(0)
   const dragCounterRef = useRef(0)
   const initialScrollDoneRef = useRef<string | null>(null)
 
@@ -392,6 +393,37 @@ export function ChatPanel({
     setInputBeamVisible(true)
     const timer = setTimeout(() => setInputBeamVisible(false), 6000)
     return () => clearTimeout(timer)
+  }, [activeFolder])
+
+  // Slash-skill autocomplete: scan SKILL.md files in the active folder so the
+  // dropdown can show them when the user types `/`. Refreshes on folder change
+  // and when agents change (since per-agent skills live under each agent's
+  // folder). The scan is cheap (small filesystem walk), so refreshing on the
+  // octosChanged event covers nearly all add/remove cases without polling.
+  useEffect(() => {
+    if (!activeFolder || !window.api.listSkills) {
+      setSkills([])
+      return
+    }
+    let cancelled = false
+    const refresh = () => {
+      window.api
+        .listSkills(activeFolder)
+        .then((list) => {
+          if (!cancelled) setSkills(list)
+        })
+        .catch(() => {
+          if (!cancelled) setSkills([])
+        })
+    }
+    refresh()
+    const unlisten = window.api.onOctosChanged((folder) => {
+      if (folder === activeFolder) refresh()
+    })
+    return () => {
+      cancelled = true
+      unlisten()
+    }
   }, [activeFolder])
 
   // Auto-grow textarea based on content
@@ -757,6 +789,28 @@ export function ChatPanel({
     return candidates.filter((n) => n.toLowerCase().startsWith(q))
   }, [octos, mentionQuery])
 
+  // Slash autocomplete entries — both filesystem skills and user-defined text
+  // shortcuts share the `/word` namespace, so we render them in a single popup.
+  type SlashHint =
+    | { kind: 'skill'; skill: SlashSkill }
+    | { kind: 'shortcut'; shortcut: TextShortcut }
+  const slashHints = useMemo<SlashHint[]>(() => {
+    if (!slashHintsOpen) return []
+    const trimmed = input.trimStart()
+    if (!trimmed.startsWith('/')) return []
+    const firstWord = trimmed.split(/\s/)[0]
+    const q = firstWord.slice(1).toLowerCase()
+    const skillMatches: SlashHint[] = skills
+      .filter((s) => s.name.toLowerCase().startsWith(q))
+      .slice(0, 8)
+      .map((skill) => ({ kind: 'skill', skill }))
+    const shortcutMatches: SlashHint[] = shortcuts
+      .filter((s) => s.trigger.toLowerCase().startsWith(firstWord.toLowerCase()))
+      .slice(0, 5)
+      .map((shortcut) => ({ kind: 'shortcut', shortcut }))
+    return [...skillMatches, ...shortcutMatches]
+  }, [slashHintsOpen, input, skills, shortcuts])
+
   const onInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const v = e.target.value
     setInput(v)
@@ -768,23 +822,40 @@ export function ChatPanel({
       setMentionOpen(true)
       setMentionQuery(match[1])
       setMentionIndex(0)
-      setShortcutHints([])
+      setSlashHintsOpen(false)
     } else {
       setMentionOpen(false)
-
-      // Shortcut hint: if input starts with / and has no spaces yet, show matching shortcuts
+      // Open the slash dropdown only while the cursor is inside the leading
+      // `/word` token. Once the user types a space (e.g. `/foo bar`) the
+      // command is "committed" and we hide the popup so it doesn't get in the
+      // way of typing arguments.
       const trimmed = v.trimStart()
-      if (trimmed.startsWith('/') && shortcuts.length > 0) {
-        const firstWord = trimmed.split(/\s/)[0]
-        const matches = shortcuts.filter((s) =>
-          s.trigger.toLowerCase().startsWith(firstWord.toLowerCase())
-        )
-        setShortcutHints(matches.slice(0, 5))
-        setShortcutHintIndex(0)
+      const firstToken = trimmed.split(/\s/)[0]
+      if (trimmed.startsWith('/') && firstToken === trimmed) {
+        setSlashHintsOpen(true)
+        setSlashHintIndex(0)
       } else {
-        setShortcutHints([])
+        setSlashHintsOpen(false)
       }
     }
+  }
+
+  const applySlashHint = (hint: SlashHint) => {
+    if (hint.kind === 'skill') {
+      const trimmed = input.trimStart()
+      const leading = input.slice(0, input.length - trimmed.length)
+      const rest = trimmed.split(/\s/).slice(1).join(' ')
+      const next =
+        leading + '/' + hint.skill.name + (rest ? ' ' + rest : ' ')
+      setInput(next)
+    } else {
+      const trimmed = input.trimStart()
+      const leading = input.slice(0, input.length - trimmed.length)
+      const rest = trimmed.split(/\s/).slice(1).join(' ')
+      setInput(leading + hint.shortcut.trigger + ' ' + rest)
+    }
+    setSlashHintsOpen(false)
+    textareaRef.current?.focus()
   }
 
   const handleSend = async () => {
@@ -822,32 +893,27 @@ export function ChatPanel({
       }
     }
 
-    // Shortcut hint navigation
-    if (shortcutHints.length > 0 && !mentionOpen) {
+    // Slash hint navigation (skills + text shortcuts share the popup).
+    if (slashHints.length > 0 && !mentionOpen) {
       if (e.key === 'ArrowDown') {
         e.preventDefault()
-        setShortcutHintIndex((prev) => (prev + 1) % shortcutHints.length)
+        setSlashHintIndex((prev) => (prev + 1) % slashHints.length)
         return
       }
       if (e.key === 'ArrowUp') {
         e.preventDefault()
-        setShortcutHintIndex((prev) => (prev - 1 + shortcutHints.length) % shortcutHints.length)
+        setSlashHintIndex((prev) => (prev - 1 + slashHints.length) % slashHints.length)
         return
       }
-      if (e.key === 'Tab') {
+      if (e.key === 'Tab' || e.key === 'Enter') {
         if (e.nativeEvent.isComposing || e.keyCode === 229) return
         e.preventDefault()
-        // Auto-fill the trigger + space
-        const sc = shortcutHints[shortcutHintIndex]
-        const afterTrigger = input.trimStart().slice(input.trimStart().split(/\s/)[0].length)
-        setInput(sc.trigger + ' ' + afterTrigger.trimStart())
-        setShortcutHints([])
-        textareaRef.current?.focus()
+        applySlashHint(slashHints[slashHintIndex])
         return
       }
       if (e.key === 'Escape') {
         e.preventDefault()
-        setShortcutHints([])
+        setSlashHintsOpen(false)
         return
       }
     }
@@ -855,7 +921,7 @@ export function ChatPanel({
     if (e.key === 'Enter' && !e.shiftKey) {
       if (e.nativeEvent.isComposing || e.keyCode === 229) return
       e.preventDefault()
-      setShortcutHints([])
+      setSlashHintsOpen(false)
       handleSend()
     }
     if (e.key === 'Escape') setMentionOpen(false)
@@ -1123,29 +1189,58 @@ export function ChatPanel({
           <MentionPopup filteredMentions={filteredMentions} pickMention={pickMention} octos={octos} selectedIndex={mentionIndex} />
         )}
 
-        {/* Shortcut hints popup */}
-        {shortcutHints.length > 0 && !mentionOpen && (
+        {/* Slash autocomplete popup (skills + shortcuts) */}
+        {slashHints.length > 0 && !mentionOpen && (
           <div className="shortcut-hint-popup">
-            {shortcutHints.map((sc, idx) => (
-              <div
-                key={sc.trigger}
-                className={`shortcut-hint-item ${idx === shortcutHintIndex ? 'selected' : ''}`}
-                onMouseDown={(e) => {
-                  e.preventDefault()
-                  const afterTrigger = input.trimStart().slice(input.trimStart().split(/\s/)[0].length)
-                  setInput(sc.trigger + ' ' + afterTrigger.trimStart())
-                  setShortcutHints([])
-                  textareaRef.current?.focus()
-                }}
-              >
-                <kbd className="shortcut-hint-trigger">{sc.trigger}</kbd>
-                <span className="shortcut-hint-arrow">→</span>
-                <span className="shortcut-hint-expansion">{sc.expansion}</span>
-                {sc.description && (
-                  <span className="shortcut-hint-desc">{sc.description}</span>
-                )}
-              </div>
-            ))}
+            {slashHints.map((hint, idx) => {
+              const selected = idx === slashHintIndex
+              if (hint.kind === 'skill') {
+                const sourceLabel = hint.skill.source === 'workspace'
+                  ? t('chat.skillSourceWorkspace')
+                  : hint.skill.source === 'user'
+                  ? t('chat.skillSourceUser')
+                  : t('chat.skillSourceAgent', { name: hint.skill.source.slice('agent:'.length) })
+                return (
+                  <div
+                    key={`skill:${hint.skill.path}`}
+                    className={`shortcut-hint-item ${selected ? 'selected' : ''}`}
+                    onMouseDown={(e) => {
+                      e.preventDefault()
+                      applySlashHint(hint)
+                    }}
+                  >
+                    <kbd className="shortcut-hint-trigger">/{hint.skill.name}</kbd>
+                    <span className="skill-hint-source">{sourceLabel}</span>
+                    {hint.skill.description && (
+                      <span
+                        className="shortcut-hint-expansion"
+                        title={hint.skill.description}
+                      >
+                        {hint.skill.description}
+                      </span>
+                    )}
+                  </div>
+                )
+              }
+              const sc = hint.shortcut
+              return (
+                <div
+                  key={`shortcut:${sc.trigger}`}
+                  className={`shortcut-hint-item ${selected ? 'selected' : ''}`}
+                  onMouseDown={(e) => {
+                    e.preventDefault()
+                    applySlashHint(hint)
+                  }}
+                >
+                  <kbd className="shortcut-hint-trigger">{sc.trigger}</kbd>
+                  <span className="shortcut-hint-arrow">→</span>
+                  <span className="shortcut-hint-expansion">{sc.expansion}</span>
+                  {sc.description && (
+                    <span className="shortcut-hint-desc">{sc.description}</span>
+                  )}
+                </div>
+              )
+            })}
           </div>
         )}
 

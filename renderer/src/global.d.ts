@@ -61,6 +61,15 @@ interface TextShortcut {
   description?: string
 }
 
+interface SlashSkill {
+  name: string
+  description: string
+  /** "workspace" | "agent:<dirname>" | "user" */
+  source: string
+  argumentHint?: string
+  path: string
+}
+
 interface AppSettings {
   general: {
     restoreLastWorkspace: boolean
@@ -297,6 +306,11 @@ interface Window {
     newWindow: () => Promise<{ ok: true; windowId: number } | { ok: false; error: string }>
     getWindowCount: () => Promise<{ count: number; max: number }>
     onWindowLimitReached: (cb: (maxWindows: number) => void) => () => void
+
+    // Skills (slash command autocomplete — scans .claude/skills/ in the
+    // workspace, every agent's folder, and ~/.claude/skills/). Tauri-only;
+    // Electron preload doesn't currently bridge this command.
+    listSkills?: (folderPath: string) => Promise<SlashSkill[]>
   }
 }
 

@@ -78,6 +78,15 @@ File watching uses the `notify` crate, scoped to `octopal-agents/`.
 ~/.octopal/wiki/<workspaceId>/
 ```
 
+## Skills
+
+Spawned Claude CLI processes auto-discover skills from:
+
+- **Workspace** `<workspace>/.claude/skills/<name>/SKILL.md` — visible to every agent (cwd is the workspace folder).
+- **Per-agent** `<workspace>/octopal-agents/<agent>/.claude/skills/<name>/SKILL.md` — visible only to that agent. Wired via `--add-dir <agent_dir>` in `agent.rs`.
+
+The dispatcher process (cwd `.`) is intentionally left out — it routes messages and shouldn't load skills. Live edits to existing `.claude/skills/` directories are picked up without restart, but creating a brand-new skills directory after the agent has spawned requires the next message to restart that agent's pooled process (the Claude CLI watcher only registers directories that existed at session start).
+
 ## Notes
 
 - Global behavioral rules (simplicity, surgical changes, Podman, no Google Fonts, etc.) live in `~/.claude/CLAUDE.md` and are not duplicated here.

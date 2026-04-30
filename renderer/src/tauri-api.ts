@@ -234,6 +234,9 @@ export function createTauriApi(): typeof window.api {
     // ── Multi-window ──
     newWindow: () => invoke('new_window'),
     getWindowCount: () => invoke('get_window_count'),
+    // ── Skills ──
+    listSkills: (folderPath: string) => invoke('list_skills', { folderPath }),
+
     // ── Backup / Revert ──
     listBackups: (folderPath: string) => invoke('list_backups', { folderPath }),
     readBackupFile: (params) =>

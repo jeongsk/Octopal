@@ -148,7 +148,12 @@
     "pastedTextError": "텍스트를 불러올 수 없습니다",
     "chars": "자",
     "showMore": "더 보기",
-    "showLess": "접기"
+    "showLess": "접기",
+    "skillsHeader": "스킬",
+    "shortcutsHeader": "단축어",
+    "skillSourceWorkspace": "워크스페이스",
+    "skillSourceUser": "사용자",
+    "skillSourceAgent": "에이전트 · {{name}}"
   },
   "sidebar": {
     "wiki": "위키",
