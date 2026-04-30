@@ -655,6 +655,7 @@ pub enum TurnEvent {
 #[derive(Debug, Clone)]
 pub struct TurnResult {
     pub stop_reason: String,
+    #[allow(dead_code)]
     pub raw_response: Value,
 }
 

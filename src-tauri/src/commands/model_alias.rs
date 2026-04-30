@@ -27,6 +27,7 @@
 /// - anything else → input unchanged.
 ///
 /// Stage 6b-ii dispatcher will reuse this on the Haiku/planner path.
+#[allow(dead_code)]
 pub fn resolve(alias_or_id: &str, provider: &str) -> String {
     match (alias_or_id, provider) {
         ("opus", "anthropic") => "claude-opus-4-7".to_string(),
