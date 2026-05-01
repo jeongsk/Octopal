@@ -478,7 +478,7 @@
     "override": "재정의",
     "editLocal": "편집",
     "delete": "재정의 제거",
-    "addLocal": "에이전트 전용 서버 추가",
+    "addLocal": "에이전트 전용 MCP 서버 추가",
     "tools": "도구",
     "toolsLoading": "도구 목록을 불러오는 중…",
     "toolsUnavailable": "도구 목록을 가져올 수 없습니다 — 서버 연결을 확인하세요.",

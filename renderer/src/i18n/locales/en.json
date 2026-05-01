@@ -478,7 +478,7 @@
     "override": "Override",
     "editLocal": "Edit",
     "delete": "Remove override",
-    "addLocal": "Add agent-only server",
+    "addLocal": "Add agent-only MCP Server",
     "tools": "Tools",
     "toolsLoading": "Loading tools…",
     "toolsUnavailable": "Could not list tools — check server is reachable.",
