@@ -161,67 +161,61 @@ export function ModelsTab({
         onAdvancedChange={onAdvancedChange}
       />
 
-      <h4 className="settings-section-title" style={{ marginTop: 20, fontSize: 14 }}>
-        {t('settings.providers.keysTitle')}
-      </h4>
+      {!isClaudeCli && (
+        <>
+          <h4 className="settings-section-title" style={{ marginTop: 20, fontSize: 14 }}>
+            {t('settings.providers.keysTitle')}
+          </h4>
 
-      {isClaudeCli && (
-        <div className="providers-status-banner info" role="note">
-          <Info size={14} />
-          <span>{t('settings.models.keysClaudeCliBanner')}</span>
-        </div>
-      )}
-
-      {status && (
-        <div
-          className={`providers-status-banner ${status.backend === 'env_fallback' ? 'warn' : status.available ? 'info' : 'error'}`}
-        >
-          {status.backend === 'env_fallback' ? (
-            <AlertTriangle size={14} />
-          ) : status.available ? (
-            <Info size={14} />
-          ) : (
-            <AlertTriangle size={14} />
+          {status && (
+            <div
+              className={`providers-status-banner ${status.backend === 'env_fallback' ? 'warn' : status.available ? 'info' : 'error'}`}
+            >
+              {status.backend === 'env_fallback' ? (
+                <AlertTriangle size={14} />
+              ) : status.available ? (
+                <Info size={14} />
+              ) : (
+                <AlertTriangle size={14} />
+              )}
+              <span>
+                {status.backend === 'env_fallback'
+                  ? t('settings.providers.statusEnvFallback', { envVar: status.fallback_env_var })
+                  : status.available
+                    ? t('settings.providers.statusKeyring')
+                    : t('settings.providers.statusUnavailable')}
+              </span>
+            </div>
           )}
-          <span>
-            {status.backend === 'env_fallback'
-              ? t('settings.providers.statusEnvFallback', { envVar: status.fallback_env_var })
-              : status.available
-                ? t('settings.providers.statusKeyring')
-                : t('settings.providers.statusUnavailable')}
-          </span>
-        </div>
-      )}
 
-      <div
-        className="provider-card-grid"
-        style={isClaudeCli ? { opacity: 0.5 } : undefined}
-      >
-        {Object.entries(manifest).map(([pid, entry]) => {
-          const primaryAuth = entry.authMethods[0]
-          if (!primaryAuth) return null
-          const envVarName = `OCTOPAL_KEY_${pid.toUpperCase()}`
-          const isHostOnly = primaryAuth.id === 'host_only'
-          return (
-            <ProviderCard
-              key={pid}
-              providerId={pid}
-              displayName={entry.displayName}
-              hasKey={configured[pid] ?? false}
-              envFallback={status?.backend === 'env_fallback'}
-              envVarName={envVarName}
-              keyLabel={
-                isHostOnly
-                  ? t('settings.providers.hostUrl')
-                  : t('settings.providers.apiKey')
-              }
-              authMethodId={primaryAuth.id}
-              onSaved={() => refreshConfigured(pid)}
-              onRemoved={() => refreshConfigured(pid)}
-            />
-          )
-        })}
-      </div>
+          <div className="provider-card-grid">
+            {Object.entries(manifest).map(([pid, entry]) => {
+              const primaryAuth = entry.authMethods[0]
+              if (!primaryAuth) return null
+              const envVarName = `OCTOPAL_KEY_${pid.toUpperCase()}`
+              const isHostOnly = primaryAuth.id === 'host_only'
+              return (
+                <ProviderCard
+                  key={pid}
+                  providerId={pid}
+                  displayName={entry.displayName}
+                  hasKey={configured[pid] ?? false}
+                  envFallback={status?.backend === 'env_fallback'}
+                  envVarName={envVarName}
+                  keyLabel={
+                    isHostOnly
+                      ? t('settings.providers.hostUrl')
+                      : t('settings.providers.apiKey')
+                  }
+                  authMethodId={primaryAuth.id}
+                  onSaved={() => refreshConfigured(pid)}
+                  onRemoved={() => refreshConfigured(pid)}
+                />
+              )
+            })}
+          </div>
+        </>
+      )}
     </div>
   )
 }
