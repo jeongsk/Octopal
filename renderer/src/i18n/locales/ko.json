@@ -229,6 +229,7 @@
     "addFolder": "폴더 추가",
     "newWorkspace": "+ 새 워크스페이스",
     "removeWorkspace": "워크스페이스 삭제",
+    "removeFolderTitle": "폴더 제거",
     "removeFolderConfirm": "{{name}}을(를) 목록에서 제거할까요?",
     "collapseSidebar": "사이드바 접기",
     "expandSidebar": "사이드바 펼치기",

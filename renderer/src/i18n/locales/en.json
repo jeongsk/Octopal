@@ -229,6 +229,7 @@
     "addFolder": "Add Folder",
     "newWorkspace": "+ New workspace",
     "removeWorkspace": "Remove workspace",
+    "removeFolderTitle": "Remove folder",
     "removeFolderConfirm": "Remove {{name}} from the list?",
     "collapseSidebar": "Collapse sidebar",
     "expandSidebar": "Expand sidebar",
