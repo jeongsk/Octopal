@@ -8,25 +8,28 @@ export interface FontOption {
   stack: string
 }
 
+// Every UI/chat stack ends with `"Tossface"` to keep emoji rendering aligned
+// with the :root default in globals.css — without it, picking any non-default
+// font silently swaps Tossface emoji for the OS-default emoji font.
 export const UI_FONT_OPTIONS: FontOption[] = [
   { value: 'system', label: 'System Default', stack: '' },
   {
     value: 'system-ui',
     label: 'System Sans',
-    stack: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+    stack: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif, "Tossface"',
   },
-  { value: 'outfit', label: 'Outfit', stack: '"Outfit", system-ui, sans-serif' },
+  { value: 'outfit', label: 'Outfit', stack: '"Outfit", system-ui, sans-serif, "Tossface"' },
   {
     value: 'pretendard',
     label: 'Pretendard',
-    stack: '"Pretendard Variable", system-ui, sans-serif',
+    stack: '"Pretendard Variable", system-ui, sans-serif, "Tossface"',
   },
   {
     value: 'helvetica',
     label: 'Helvetica Neue',
-    stack: '"Helvetica Neue", Helvetica, Arial, sans-serif',
+    stack: '"Helvetica Neue", Helvetica, Arial, sans-serif, "Tossface"',
   },
-  { value: 'georgia', label: 'Georgia', stack: 'Georgia, "Times New Roman", serif' },
+  { value: 'georgia', label: 'Georgia', stack: 'Georgia, "Times New Roman", serif, "Tossface"' },
 ]
 
 export const CHAT_FONT_OPTIONS: FontOption[] = UI_FONT_OPTIONS
@@ -56,6 +59,20 @@ export function optionsFor(kind: FontKind): FontOption[] {
 
 export function stackFor(kind: FontKind, value: string): string {
   return optionsFor(kind).find((o) => o.value === value)?.stack ?? ''
+}
+
+// Per CSSOM § 6.7.2, setProperty(name, '') is equivalent to removeProperty(name)
+// — so 'system' (whose stack is '') reverts to the :root default cascade
+// rather than overriding it with an empty literal. Replacing '' with e.g.
+// 'inherit' would NOT remove the variable; it would set it to the literal
+// string 'inherit', silently breaking the Korean Pretendard cascade.
+export function applyFontVars(
+  root: HTMLElement,
+  appearance: { uiFont?: string; chatFont?: string; codeFont?: string } | undefined
+): void {
+  root.style.setProperty('--font-ui', stackFor('ui', appearance?.uiFont ?? 'system'))
+  root.style.setProperty('--font-chat', stackFor('chat', appearance?.chatFont ?? 'system'))
+  root.style.setProperty('--font-mono', stackFor('code', appearance?.codeFont ?? 'system'))
 }
 
 interface Props {

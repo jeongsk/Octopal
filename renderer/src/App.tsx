@@ -21,7 +21,7 @@ import { TaskBoard } from './components/TaskBoard'
 import { ToastContainer, showToast } from './components/Toast'
 import { expandShortcut } from './shortcut-expander'
 import { convKey, sortConversations } from './components/Conversations/conversation-helpers'
-import { stackFor } from './components/settings/AppearanceFontSelector'
+import { applyFontVars } from './components/settings/AppearanceFontSelector'
 
 /** Race a promise against a timeout. Rejects with a descriptive error if ms elapses. */
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
@@ -179,20 +179,21 @@ export function App() {
         setClaudeCliStatus(status)
       }
     })
-    window.api.loadSettings().then((settings) => {
-      if (settings.general.language && settings.general.language !== i18n.language) {
-        i18n.changeLanguage(settings.general.language)
-      }
-      shortcutsRef.current = settings.shortcuts?.textExpansions || []
-      const saved = settings.appearance?.theme
-      if (saved === 'dark' || saved === 'light' || saved === 'system') {
-        setTheme(saved)
-      }
-      const root = document.documentElement
-      root.style.setProperty('--font-ui', stackFor('ui', settings.appearance?.uiFont ?? 'system'))
-      root.style.setProperty('--font-chat', stackFor('chat', settings.appearance?.chatFont ?? 'system'))
-      root.style.setProperty('--font-mono', stackFor('code', settings.appearance?.codeFont ?? 'system'))
-    })
+    window.api.loadSettings()
+      .then((settings) => {
+        if (settings.general.language && settings.general.language !== i18n.language) {
+          i18n.changeLanguage(settings.general.language)
+        }
+        shortcutsRef.current = settings.shortcuts?.textExpansions || []
+        const saved = settings.appearance?.theme
+        if (saved === 'dark' || saved === 'light' || saved === 'system') {
+          setTheme(saved)
+        }
+        applyFontVars(document.documentElement, settings.appearance)
+      })
+      .catch((err) => {
+        console.error('[Settings] startup load failed:', err)
+      })
     window.api.loadState().then(async (s) => {
       if (s.workspaces.length === 0) {
         // 첫 실행: "Personal" 스페이스 자동 생성 후 웰컴 모달

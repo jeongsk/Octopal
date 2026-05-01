@@ -175,7 +175,9 @@
       "restartToUpdate": "Restart to Update",
       "copyright": "Made with ❤️ by Gilhyun"
     },
-    "unsavedChanges": "Unsaved changes"
+    "unsavedChanges": "Unsaved changes",
+    "saveFailedTitle": "Couldn't save settings",
+    "saveFailedMessage": "Settings could not be written to disk. Please try again."
   },
   "chat": {
     "placeholder": "Message the room… (@name to target one agent, @all for everyone)",

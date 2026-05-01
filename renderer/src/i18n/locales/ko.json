@@ -175,7 +175,9 @@
       "restartToUpdate": "재시작하여 업데이트",
       "copyright": "Made with ❤️ by Gilhyun"
     },
-    "unsavedChanges": "저장하지 않은 변경사항"
+    "unsavedChanges": "저장하지 않은 변경사항",
+    "saveFailedTitle": "설정을 저장할 수 없습니다",
+    "saveFailedMessage": "설정을 디스크에 기록하지 못했습니다. 다시 시도해 주세요."
   },
   "chat": {
     "placeholder": "메시지를 입력하세요… (@이름으로 특정 에이전트에게, @all로 전체에게)",
