@@ -1,8 +1,9 @@
-import { useRef, useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { basename } from '../utils'
 import { Plus, FolderOpen, ChevronDown, ChevronRight, X, BookOpen, Activity, Settings, LayoutGrid, MessageSquare } from 'lucide-react'
 import type { Conversation } from '../types'
+import { ConfirmModal } from './ConfirmModal'
 
 interface LeftSidebarProps {
   activeWorkspace: Workspace | null
@@ -57,6 +58,29 @@ export function LeftSidebar({
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(
     () => new Set(activeFolder ? [activeFolder] : []),
   )
+  const [folderPendingDelete, setFolderPendingDelete] = useState<string | null>(null)
+  const [convMenu, setConvMenu] = useState<
+    | { folder: string; conv: Conversation; x: number; y: number }
+    | null
+  >(null)
+  const [convPendingDelete, setConvPendingDelete] = useState<
+    | { folder: string; conv: Conversation }
+    | null
+  >(null)
+
+  useEffect(() => {
+    if (!convMenu) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setConvMenu(null)
+    }
+    const onMouseDown = () => setConvMenu(null)
+    window.addEventListener('keydown', onKey)
+    window.addEventListener('mousedown', onMouseDown)
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      window.removeEventListener('mousedown', onMouseDown)
+    }
+  }, [convMenu])
 
   useEffect(() => {
     if (activeFolder) {
@@ -223,7 +247,7 @@ export function LeftSidebar({
                 }}
                 onContextMenu={(e) => {
                   e.preventDefault()
-                  if (confirm(t('sidebar.removeFolderConfirm', { name: basename(f) }))) removeFolder(f)
+                  setFolderPendingDelete(f)
                 }}
                 title={f}
               >
@@ -248,19 +272,11 @@ export function LeftSidebar({
                       key={c.id}
                       className={`conversation-item ${c.id === activeConvId && isActive ? 'active' : ''}`}
                       onClick={() => onSwitchConversation(f, c.id)}
+                      onDoubleClick={() => onRequestRenameConversation(f, c)}
                       onContextMenu={(e) => {
                         e.preventDefault()
-                        // Simple context menu via two confirms — matches the
-                        // project-list right-click affordance.
-                        const action = window.prompt(
-                          `${t('conversations.rename')} / ${t('conversations.delete')}? (r/d)`,
-                          'r',
-                        )
-                        if (action === 'r') {
-                          onRequestRenameConversation(f, c)
-                        } else if (action === 'd') {
-                          onDeleteConversation(f, c.id)
-                        }
+                        e.stopPropagation()
+                        setConvMenu({ folder: f, conv: c, x: e.clientX, y: e.clientY })
                       }}
                       title={c.title}
                     >
@@ -298,6 +314,69 @@ export function LeftSidebar({
           <span>{t('sidebar.settings')}</span>
         </button>
       </div>
+      {folderPendingDelete && (
+        <ConfirmModal
+          title={t('sidebar.removeFolderTitle')}
+          message={t('sidebar.removeFolderConfirm', { name: basename(folderPendingDelete) })}
+          confirmLabel={t('common.delete')}
+          cancelLabel={t('common.cancel')}
+          variant="danger"
+          onConfirm={() => {
+            const target = folderPendingDelete
+            setFolderPendingDelete(null)
+            removeFolder(target)
+          }}
+          onCancel={() => setFolderPendingDelete(null)}
+        />
+      )}
+      {convMenu && (
+        <div
+          className="context-menu"
+          style={{
+            top: Math.min(convMenu.y, window.innerHeight - 96),
+            left: Math.min(convMenu.x, window.innerWidth - 168),
+          }}
+          onMouseDown={(e) => e.stopPropagation()}
+          onContextMenu={(e) => e.preventDefault()}
+          role="menu"
+        >
+          <button
+            className="context-menu-item"
+            onClick={() => {
+              const m = convMenu
+              setConvMenu(null)
+              onRequestRenameConversation(m.folder, m.conv)
+            }}
+          >
+            {t('conversations.rename')}
+          </button>
+          <button
+            className="context-menu-item context-menu-item--danger"
+            onClick={() => {
+              const m = convMenu
+              setConvMenu(null)
+              setConvPendingDelete({ folder: m.folder, conv: m.conv })
+            }}
+          >
+            {t('conversations.delete')}
+          </button>
+        </div>
+      )}
+      {convPendingDelete && (
+        <ConfirmModal
+          title={t('conversations.delete')}
+          message={t('conversations.deleteConfirm', { title: convPendingDelete.conv.title })}
+          confirmLabel={t('common.delete')}
+          cancelLabel={t('common.cancel')}
+          variant="danger"
+          onConfirm={() => {
+            const target = convPendingDelete
+            setConvPendingDelete(null)
+            onDeleteConversation(target.folder, target.conv.id)
+          }}
+          onCancel={() => setConvPendingDelete(null)}
+        />
+      )}
     </aside>
   )
 }

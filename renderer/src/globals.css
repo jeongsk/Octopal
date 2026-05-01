@@ -710,6 +710,42 @@ button {
   color: var(--danger-text);
 }
 
+.context-menu {
+  position: fixed;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 4px;
+  box-shadow: var(--shadow-md);
+  min-width: 160px;
+  z-index: 250;
+  -webkit-app-region: no-drag;
+}
+
+.context-menu-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  padding: 6px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: var(--font-sm);
+  color: var(--text-secondary);
+  transition: background var(--transition), color var(--transition);
+}
+
+.context-menu-item:hover {
+  background: var(--bg-hover);
+  color: var(--text-heading);
+}
+
+.context-menu-item--danger:hover {
+  background: var(--danger-bg);
+  color: var(--danger-text);
+}
+
 .workspace-divider {
   height: 1px;
   background: var(--border);
