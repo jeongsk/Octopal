@@ -17,13 +17,15 @@ import {
   Check,
   KeyRound,
   Plug,
+  Sparkles,
 } from 'lucide-react'
 import { ModelsTab } from './settings/ModelsTab'
 import { McpTab } from './settings/McpTab'
+import { SkillsTab } from './settings/SkillsTab'
 import { AppearanceFontSelector, applyFontVars } from './settings/AppearanceFontSelector'
 import { showToast } from './Toast'
 
-type SettingsTab = 'general' | 'agents' | 'models' | 'mcp' | 'appearance' | 'shortcuts' | 'advanced' | 'about'
+type SettingsTab = 'general' | 'agents' | 'skills' | 'models' | 'mcp' | 'appearance' | 'shortcuts' | 'advanced' | 'about'
 
 const LANGUAGES = [
   { code: 'en', label: 'English' },
@@ -32,9 +34,10 @@ const LANGUAGES = [
 
 interface SettingsPanelProps {
   onSettingsSaved?: (settings: AppSettings) => void
+  activeFolder?: string | null
 }
 
-export function SettingsPanel({ onSettingsSaved }: SettingsPanelProps = {}) {
+export function SettingsPanel({ onSettingsSaved, activeFolder }: SettingsPanelProps = {}) {
   const { t, i18n } = useTranslation()
   const [tab, setTab] = useState<SettingsTab>('general')
   const [settings, setSettings] = useState<AppSettings | null>(null)
@@ -63,6 +66,7 @@ export function SettingsPanel({ onSettingsSaved }: SettingsPanelProps = {}) {
   const TABS: { id: SettingsTab; label: string; icon: typeof Settings }[] = [
     { id: 'general', label: t('settings.tabs.general'), icon: Settings },
     { id: 'agents', label: t('settings.tabs.agents'), icon: Users },
+    { id: 'skills', label: t('settings.tabs.skills'), icon: Sparkles },
     { id: 'models', label: t('settings.tabs.models'), icon: KeyRound },
     { id: 'mcp', label: t('settings.tabs.mcp'), icon: Plug },
     { id: 'appearance', label: t('settings.tabs.appearance'), icon: Palette },
@@ -426,6 +430,12 @@ export function SettingsPanel({ onSettingsSaved }: SettingsPanelProps = {}) {
               />
               <span className="toggle-slider" />
             </label>
+          </div>
+        )}
+
+        {tab === 'skills' && (
+          <div className="settings-section">
+            <SkillsTab activeFolder={activeFolder} />
           </div>
         )}
 

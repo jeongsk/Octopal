@@ -103,6 +103,13 @@ interface SlashSkill {
   path: string
 }
 
+interface SkillForSettings extends SlashSkill {
+  enabled: boolean
+  raw: string
+}
+
+type SkillScope = 'workspace' | 'user'
+
 interface AppSettings {
   general: {
     restoreLastWorkspace: boolean
@@ -441,6 +448,26 @@ interface Window {
     // workspace, every agent's folder, and ~/.claude/skills/). Tauri-only;
     // Electron preload doesn't currently bridge this command.
     listSkills?: (folderPath: string) => Promise<SlashSkill[]>
+    listSkillsForSettings?: (folderPath: string) => Promise<SkillForSettings[]>
+    readSkillSource?: (path: string) => Promise<string>
+    createSkill?: (params: {
+      scope: SkillScope
+      folderPath?: string
+      name: string
+      description: string
+      argumentHint?: string
+      body: string
+      enabled: boolean
+    }) => Promise<{ ok: true; path: string } | { ok: false; error: string }>
+    updateSkill?: (params: {
+      path: string
+      name?: string
+      description?: string
+      argumentHint?: string
+      body?: string
+      enabled?: boolean
+    }) => Promise<{ ok: true; path: string } | { ok: false; error: string }>
+    deleteSkill?: (path: string) => Promise<{ ok: true } | { ok: false; error: string }>
   }
 }
 

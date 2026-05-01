@@ -2052,13 +2052,16 @@ export function App() {
         ) : centerTab === 'tasks' ? (
           <TaskBoard />
         ) : centerTab === 'settings' ? (
-          <SettingsPanel onSettingsSaved={(s) => {
-            shortcutsRef.current = s.shortcuts?.textExpansions || []
-            const saved = s.appearance?.theme
-            if (saved === 'dark' || saved === 'light' || saved === 'system') {
-              setTheme(saved)
-            }
-          }} />
+          <SettingsPanel
+            activeFolder={activeFolder}
+            onSettingsSaved={(s) => {
+              shortcutsRef.current = s.shortcuts?.textExpansions || []
+              const saved = s.appearance?.theme
+              if (saved === 'dark' || saved === 'light' || saved === 'system') {
+                setTheme(saved)
+              }
+            }}
+          />
         ) : state.activeWorkspaceId ? (
           <WikiPanel workspaceId={state.activeWorkspaceId} />
         ) : null}

@@ -255,8 +255,13 @@ pub fn run() {
             // Model probe (detects newest available Opus, e.g. 4.7)
             commands::model_probe::get_best_opus_model,
             commands::model_probe::reprobe_best_opus_model,
-            // Skills (slash command autocomplete)
+            // Skills (slash command autocomplete + management)
             commands::skills::list_skills,
+            commands::skills::list_skills_for_settings,
+            commands::skills::read_skill_source,
+            commands::skills::create_skill,
+            commands::skills::update_skill,
+            commands::skills::delete_skill,
             // Goose ACP sidecar (Phase 2+)
             commands::goose_acp::check_goose_sidecar,
             commands::goose_acp::acp_smoke_test,

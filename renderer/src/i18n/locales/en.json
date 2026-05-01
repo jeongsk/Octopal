@@ -18,6 +18,7 @@
     "tabs": {
       "general": "General",
       "agents": "Agents",
+      "skills": "Skills",
       "providers": "Providers",
       "models": "Models",
       "mcp": "MCP",
@@ -94,6 +95,31 @@
       "suggestionsTitle": "Suggested shortcuts",
       "suggestionsDesc": "Quick-add common shortcuts based on your agents:",
       "addSuggestion": "Add"
+    },
+    "skills": {
+      "title": "Skills",
+      "desc": "Manage Claude Code skills available in this workspace and globally.",
+      "addSkill": "Add skill",
+      "noSkills": "No skills yet. Add one to give your agents new powers.",
+      "openFolderHint": "Open a folder to manage workspace-scoped skills. User-global skills are still editable.",
+      "scopeLabel": "Scope",
+      "scopeWorkspace": "Workspace",
+      "scopeUser": "User (global)",
+      "scopeAgent": "Agent · {{name}}",
+      "agentReadOnlyHint": "Per-agent skills are managed in agent settings.",
+      "enabledLabel": "Enabled",
+      "disabledTag": "disabled",
+      "argumentHintLabel": "Argument hint",
+      "argumentHintPlaceholder": "<file path>",
+      "bodyLabel": "Skill body (markdown)",
+      "bodyPlaceholder": "# Title\n\nWhen this skill should be used and what it does.",
+      "deleteConfirm": "Delete skill \"{{name}}\"? The folder will be moved to the OS trash.",
+      "frontmatterError": "Frontmatter is invalid: {{reason}}",
+      "nameRequired": "Name is required.",
+      "descriptionRequired": "Description is required.",
+      "nameInvalid": "Name can only contain letters, numbers, hyphens, and underscores.",
+      "duplicateName": "A skill named \"{{name}}\" already exists in this scope.",
+      "runtimeFootnote": "Skills currently apply to the Claude CLI runtime only. Goose runtime support is in progress."
     },
     "advanced": {
       "title": "Advanced",
@@ -304,6 +330,13 @@
       "promptLabel": "System Prompt",
       "promptHint": "Full instructions for this agent. Saved as prompt.md — also editable in VS Code or any text editor.",
       "promptPlaceholder": "You are a developer agent. You write clean code, implement features, fix bugs..."
+    },
+    "editSkill": {
+      "createTitle": "New skill",
+      "editTitle": "Edit skill",
+      "tabBasic": "Basic",
+      "tabBody": "Body",
+      "deleteConfirm": "Delete skill \"{{name}}\"?"
     },
     "createWorkspace": {
       "title": "New workspace",

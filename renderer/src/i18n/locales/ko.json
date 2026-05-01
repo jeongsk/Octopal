@@ -18,6 +18,7 @@
     "tabs": {
       "general": "일반",
       "agents": "에이전트",
+      "skills": "스킬",
       "providers": "프로바이더",
       "models": "모델",
       "mcp": "MCP",
@@ -94,6 +95,31 @@
       "suggestionsTitle": "추천 단축어",
       "suggestionsDesc": "에이전트 기반 추천 단축어를 빠르게 추가하세요:",
       "addSuggestion": "추가"
+    },
+    "skills": {
+      "title": "스킬",
+      "desc": "이 워크스페이스와 전역에서 사용할 수 있는 Claude Code 스킬을 관리합니다.",
+      "addSkill": "스킬 추가",
+      "noSkills": "아직 스킬이 없습니다. 하나 추가해서 에이전트에게 새로운 능력을 부여하세요.",
+      "openFolderHint": "워크스페이스 스킬을 관리하려면 폴더를 여세요. 사용자 전역 스킬은 그대로 편집할 수 있습니다.",
+      "scopeLabel": "범위",
+      "scopeWorkspace": "워크스페이스",
+      "scopeUser": "사용자 (전역)",
+      "scopeAgent": "에이전트 · {{name}}",
+      "agentReadOnlyHint": "에이전트별 스킬은 에이전트 설정에서 관리합니다.",
+      "enabledLabel": "활성화",
+      "disabledTag": "비활성화됨",
+      "argumentHintLabel": "인수 힌트",
+      "argumentHintPlaceholder": "<파일 경로>",
+      "bodyLabel": "스킬 본문 (마크다운)",
+      "bodyPlaceholder": "# 제목\n\n이 스킬을 언제 사용하고, 무슨 일을 하는지 적으세요.",
+      "deleteConfirm": "스킬 \"{{name}}\"을(를) 삭제할까요? 폴더가 OS 휴지통으로 이동합니다.",
+      "frontmatterError": "프론트매터가 올바르지 않습니다: {{reason}}",
+      "nameRequired": "이름을 입력해주세요.",
+      "descriptionRequired": "설명을 입력해주세요.",
+      "nameInvalid": "이름은 영문/숫자/하이픈/밑줄만 사용할 수 있습니다.",
+      "duplicateName": "이 범위에 \"{{name}}\" 스킬이 이미 존재합니다.",
+      "runtimeFootnote": "스킬은 현재 Claude CLI 런타임에서만 적용됩니다. Goose 런타임 지원은 진행 중입니다."
     },
     "advanced": {
       "title": "고급 설정",
@@ -304,6 +330,13 @@
       "promptLabel": "시스템 프롬프트",
       "promptHint": "에이전트의 전체 지시사항. prompt.md 파일로 저장되며 VS Code 등에서도 편집 가능합니다.",
       "promptPlaceholder": "당신은 개발자 에이전트입니다. 깔끔한 코드를 작성하고, 기능을 구현하고, 버그를 수정합니다..."
+    },
+    "editSkill": {
+      "createTitle": "새 스킬",
+      "editTitle": "스킬 편집",
+      "tabBasic": "기본 정보",
+      "tabBody": "본문",
+      "deleteConfirm": "스킬 \"{{name}}\"을(를) 삭제할까요?"
     },
     "createWorkspace": {
       "title": "새 워크스페이스",

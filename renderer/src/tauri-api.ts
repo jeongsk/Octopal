@@ -290,6 +290,29 @@ export function createTauriApi(): typeof window.api {
     getWindowCount: () => invoke('get_window_count'),
     // ── Skills ──
     listSkills: (folderPath: string) => invoke('list_skills', { folderPath }),
+    listSkillsForSettings: (folderPath: string) =>
+      invoke('list_skills_for_settings', { folderPath }),
+    readSkillSource: (path: string) => invoke('read_skill_source', { path }),
+    createSkill: (params) =>
+      invoke('create_skill', {
+        scope: params.scope,
+        folderPath: params.folderPath ?? null,
+        name: params.name,
+        description: params.description,
+        argumentHint: params.argumentHint ?? null,
+        body: params.body,
+        enabled: params.enabled,
+      }),
+    updateSkill: (params) =>
+      invoke('update_skill', {
+        path: params.path,
+        name: params.name ?? null,
+        description: params.description ?? null,
+        argumentHint: params.argumentHint ?? null,
+        body: params.body ?? null,
+        enabled: params.enabled ?? null,
+      }),
+    deleteSkill: (path: string) => invoke('delete_skill', { path }),
 
     // ── Backup / Revert ──
     listBackups: (folderPath: string) => invoke('list_backups', { folderPath }),
