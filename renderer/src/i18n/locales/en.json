@@ -470,7 +470,8 @@
     "tools": "Tools",
     "toolsLoading": "Loading tools…",
     "toolsUnavailable": "Could not list tools — check server is reachable.",
-    "noEffectiveServers": "No MCP servers available. Add one in Settings → MCP."
+    "noEffectiveServers": "No MCP servers available. Add one in Settings → MCP.",
+    "globalLoadFailed": "Could not load global MCP servers — only local agent servers are shown."
   },
   "mcpValidation": {
     "title": "MCP Server Validation",

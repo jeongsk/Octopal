@@ -735,15 +735,21 @@ pub async fn send_message(
 
     eprintln!("[agent:args] agent={} args={:?}", agent_name, claude_args);
 
-    // Compute config hash for cache invalidation (model + perms + MCP change → restart)
+    // Compute config hash for cache invalidation (model + perms + MCP change → restart).
+    // The pool keeps long-lived processes whose argv was baked at spawn. If
+    // the effective MCP config or per-tool disable list changes (global edit,
+    // overlay toggle, disable-tool flip), the hash must change so the pool
+    // evicts the stale process — otherwise the next message reuses argv from
+    // the old spawn and silently ignores the user's edit. Hashing the
+    // resolved MCP value (not the raw legacy blob) covers all three paths.
     let config_hash = {
         let model_str = claude_args.iter().skip_while(|a| *a != "--model").nth(1)
             .cloned().unwrap_or_default();
         let perms_str = format!("{:?}", perms);
-        let mcp_str = octo_content.get("mcpServers")
-            .map(|v| v.to_string()).unwrap_or_default();
+        let mcp_str = resolved.mcp_config.to_string();
+        let disallowed_str = resolved.disallowed_mcp_tools.join(",");
         super::process_pool::ProcessPool::hash_config(&[
-            &agent_name, &model_str, &perms_str, &mcp_str,
+            &agent_name, &model_str, &perms_str, &mcp_str, &disallowed_str,
         ])
     };
 

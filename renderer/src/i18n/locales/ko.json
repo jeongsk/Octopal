@@ -470,7 +470,8 @@
     "tools": "도구",
     "toolsLoading": "도구 목록을 불러오는 중…",
     "toolsUnavailable": "도구 목록을 가져올 수 없습니다 — 서버 연결을 확인하세요.",
-    "noEffectiveServers": "사용할 수 있는 MCP 서버가 없습니다. 설정 → MCP에서 추가하세요."
+    "noEffectiveServers": "사용할 수 있는 MCP 서버가 없습니다. 설정 → MCP에서 추가하세요.",
+    "globalLoadFailed": "전역 MCP 서버를 불러오지 못했습니다 — 로컬 에이전트 서버만 표시됩니다."
   },
   "mcpValidation": {
     "title": "MCP 서버 검증",

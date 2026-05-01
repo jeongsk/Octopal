@@ -64,6 +64,7 @@ Key modules in `src-tauri/src/commands/`:
 | `folder.rs` | Folder management within a workspace |
 | `process_pool.rs` | **Persistent** Claude CLI process pool — sessions survive across messages |
 | `model_probe.rs` | Adaptive Claude model detection (incl. Opus availability) |
+| `mcp_config.rs` | Effective-MCP-config resolver: merges global registry + per-agent overlay, drops disabled servers, emits `--disallowed-tools mcp__<server>__<tool>` |
 | `file_lock.rs` | Prevents concurrent writes |
 | `files.rs`, `wiki.rs`, `workspace.rs`, `settings.rs`, `backup.rs` | CRUD for those domains |
 
@@ -95,6 +96,25 @@ Spawned Claude CLI processes auto-discover skills from:
 - **Per-agent** `<workspace>/octopal-agents/<agent>/.claude/skills/<name>/SKILL.md` — visible only to that agent. Wired via `--add-dir <agent_dir>` in `agent.rs`.
 
 The dispatcher process (cwd `.`) is intentionally left out — it routes messages and shouldn't load skills. Live edits to existing `.claude/skills/` directories are picked up without restart, but creating a brand-new skills directory after the agent has spawned requires the next message to restart that agent's pooled process (the Claude CLI watcher only registers directories that existed at session start).
+
+## MCP
+
+MCP (Model Context Protocol) servers are configured at two layers — global and per-agent — with the resolver in `src-tauri/src/commands/mcp_config.rs` merging them on every spawn.
+
+- **Global registry** (`~/.octopal/settings.json` → `mcp.servers`): a server map available to every agent unless explicitly disabled by an overlay. Edited via Settings → MCP.
+- **Per-agent overlay** (`<agent>/config.json` → `mcp`): can add agent-only servers, override globals by name, disable specific globals (`disabledServers`), or disable individual tools (`disabledTools`). Edited via Edit Agent → MCP.
+
+**Resolver precedence** (`resolve_effective_mcp_config`):
+
+1. Start with global servers.
+2. Drop names listed in `agent.disabledServers`.
+3. Overlay agent-defined servers (same name → agent wins).
+4. Emit one `--disallowed-tools mcp__<server>__<tool>` arg per entry in `agent.disabledTools` whose server is still active.
+5. **Legacy fallback**: only when global is empty AND the agent's `mcp` block is fully empty (no servers, no disables) — then the legacy `mcpServers` blob on the agent file becomes the effective set. Once the user saves any new-shape edit, `EditAgentModal` writes `mcpServers: null`, retiring the legacy path for that agent.
+
+**Pool invalidation**: the per-spawn `config_hash` in `agent.rs` includes the resolved MCP JSON + the `--disallowed-tools` arg list. Any edit to global servers, overlay servers, disabled-server toggles, or disabled-tool entries flips the hash, evicting the stale Claude CLI process so the next message picks up new argv. The goose ACP pool is drained separately from `save_settings` whenever the global block diffs (`mcp_block_changed`).
+
+**Validation**: stdio-only health checks run after save (see `McpValidationModal`). The typed `validate_server` helper in `mcp_config.rs` is currently `#[allow(dead_code)]` — it exists for the validation/UI boundary but is not yet wired into `update_octo` / `save_settings`.
 
 ## Notes
 

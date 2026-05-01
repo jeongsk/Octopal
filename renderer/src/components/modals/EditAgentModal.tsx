@@ -38,6 +38,7 @@ export function EditAgentModal({ agent, folderPath: _folderPath, onClose, onSave
   // MCP state — hydrated from `agent.mcp` (new shape) when present, otherwise
   // from `agent.mcpServers` (legacy blob).
   const [globalServers, setGlobalServers] = useState<McpServersConfig>({})
+  const [globalServersLoadFailed, setGlobalServersLoadFailed] = useState(false)
   const [agentServers, setAgentServers] = useState<McpServersConfig>(agent.mcp?.servers ?? {})
   const [disabledServers, setDisabledServers] = useState<string[]>(agent.mcp?.disabledServers ?? [])
   const [disabledTools, setDisabledTools] = useState<Record<string, string[]>>(agent.mcp?.disabledTools ?? {})
@@ -53,13 +54,19 @@ export function EditAgentModal({ agent, folderPath: _folderPath, onClose, onSave
   const [showMcpValidation, setShowMcpValidation] = useState(false)
   const [pendingMcpServers, setPendingMcpServers] = useState<McpServersConfig | null>(null)
 
-  // Load global MCP registry once on mount.
+  // Load global MCP registry once on mount. On failure we surface a banner
+  // (not a toast) — silent-swallow lets the user create a duplicate-name
+  // local override under the mistaken assumption that no global exists, and
+  // first save would clear the legacy `mcpServers` blob alongside it.
   useEffect(() => {
     let cancelled = false
     window.api.loadSettings().then((s) => {
       if (cancelled) return
       setGlobalServers(s.mcp?.servers ?? {})
-    }).catch(() => {})
+    }).catch((err) => {
+      console.error('[EditAgentModal] loadSettings failed', err)
+      if (!cancelled) setGlobalServersLoadFailed(true)
+    })
     return () => {
       cancelled = true
     }
@@ -299,6 +306,12 @@ export function EditAgentModal({ agent, folderPath: _folderPath, onClose, onSave
               <div className="modal-hint" style={{ marginTop: 0 }}>
                 {t('agentMcp.desc')}
               </div>
+
+              {globalServersLoadFailed && (
+                <div className="modal-error" role="alert" style={{ marginTop: 8 }}>
+                  {t('agentMcp.globalLoadFailed')}
+                </div>
+              )}
 
               {Object.keys(effective).length === 0 ? (
                 <p className="settings-section-desc" style={{ fontStyle: 'italic', opacity: 0.6, marginTop: 12 }}>
