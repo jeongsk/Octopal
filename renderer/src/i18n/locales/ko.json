@@ -19,6 +19,7 @@
       "general": "일반",
       "agents": "에이전트",
       "providers": "프로바이더",
+      "models": "모델",
       "appearance": "외관",
       "shortcuts": "단축키",
       "advanced": "고급",
@@ -103,6 +104,18 @@
       "runtimeDesc": "에이전트를 실행할 백엔드를 고릅니다. Goose 2.0이 베타인 동안은 기존 Claude CLI가 기본값입니다.",
       "useLegacyCli": "Claude CLI 사용 (v0.1.42 경로)",
       "useLegacyCliDesc": "켜져 있으면 기존 Claude CLI로 에이전트를 실행합니다 (글로벌 `claude` 설치 필요). 끄면 번들된 Goose 2.0 사이드카를 사용합니다. API 키는 설정 → 프로바이더에서 관리합니다."
+    },
+    "models": {
+      "runtimeTitle": "런타임",
+      "runtimeDesc": "에이전트를 실행할 백엔드를 선택합니다. 이 페이지의 다른 설정은 선택된 런타임에서만 효과를 갖습니다. Octopal은 두 런타임의 선택을 모두 보존하므로, 다시 토글해도 이전 값이 유지됩니다.",
+      "runtimeClaudeCli": "Claude CLI (권장)",
+      "runtimeClaudeCliDesc": "설치된 `claude` CLI로 에이전트를 실행합니다. Claude 자체 인증을 사용하므로 아래 API 키는 이 모드에서 소비되지 않습니다.",
+      "runtimeGoose": "Goose (멀티 프로바이더, 베타)",
+      "runtimeGooseDesc": "번들된 Goose 2.0 사이드카를 사용합니다. 아래에서 설정한 프로바이더/모델과 API 키를 읽어 들입니다.",
+      "runtimeApplyHint": "런타임 변경은 저장 후 다음 메시지부터 적용됩니다.",
+      "defaultModelTitle": "기본 모델",
+      "adaptiveOn": "적응형 모델 선택",
+      "keysClaudeCliBanner": "Claude CLI 런타임은 `claude` 자체 인증을 사용합니다. 이 키들은 Goose 런타임에서만 소비되며, 미리 저장해 두는 것은 가능합니다."
     },
     "providers": {
       "title": "프로바이더",

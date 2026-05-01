@@ -15,23 +15,11 @@ import {
   Wrench,
   Download,
   Check,
-  FlaskConical,
   KeyRound,
 } from 'lucide-react'
-import { ProvidersTab } from './settings/ProvidersTab'
+import { ModelsTab } from './settings/ModelsTab'
 
-type SettingsTab = 'general' | 'agents' | 'providers' | 'appearance' | 'shortcuts' | 'advanced' | 'about'
-
-// Converts an explicit Claude model name (e.g. `claude-opus-4-7`) into a
-// compact user-facing label (`Opus 4.7`). Falls back to the raw model name
-// if the format doesn't match so we never hide information from the user.
-function prettyOpusLabel(model: string): string {
-  const match = model.match(/^claude-([a-z]+)-(\d+)-(\d+)$/i)
-  if (!match) return model
-  const [, tier, major, minor] = match
-  const capitalized = tier.charAt(0).toUpperCase() + tier.slice(1)
-  return `${capitalized} ${major}.${minor}`
-}
+type SettingsTab = 'general' | 'agents' | 'models' | 'appearance' | 'shortcuts' | 'advanced' | 'about'
 
 const LANGUAGES = [
   { code: 'en', label: 'English' },
@@ -64,11 +52,14 @@ export function SettingsPanel({ onSettingsSaved }: SettingsPanelProps = {}) {
   // Newest explicit Opus model name (e.g. `claude-opus-4-7`) detected on this
   // machine, or `null` while the probe is still running / no premium model.
   const [bestOpusModel, setBestOpusModel] = useState<string | null>(null)
+  // Captured at load — lets the save bar surface a "runtime change applies
+  // next session" hint only when the user has actually toggled the runtime.
+  const [initialUseLegacyClaudeCli, setInitialUseLegacyClaudeCli] = useState<boolean | null>(null)
 
   const TABS: { id: SettingsTab; label: string; icon: typeof Settings }[] = [
     { id: 'general', label: t('settings.tabs.general'), icon: Settings },
     { id: 'agents', label: t('settings.tabs.agents'), icon: Users },
-    { id: 'providers', label: t('settings.tabs.providers'), icon: KeyRound },
+    { id: 'models', label: t('settings.tabs.models'), icon: KeyRound },
     { id: 'appearance', label: t('settings.tabs.appearance'), icon: Palette },
     { id: 'shortcuts', label: t('settings.tabs.shortcuts'), icon: Keyboard },
     { id: 'advanced', label: t('settings.tabs.advanced'), icon: Wrench },
@@ -83,7 +74,10 @@ export function SettingsPanel({ onSettingsSaved }: SettingsPanelProps = {}) {
   ]
 
   useEffect(() => {
-    window.api.loadSettings().then(setSettings)
+    window.api.loadSettings().then((s) => {
+      setSettings(s)
+      setInitialUseLegacyClaudeCli(s.providers?.useLegacyClaudeCli !== false)
+    })
     window.api.getVersion().then(setVersionInfo)
     // Query the best available Opus variant. The backend probes on startup,
     // but the result may not be ready yet — poll briefly to pick it up once
@@ -248,8 +242,14 @@ export function SettingsPanel({ onSettingsSaved }: SettingsPanelProps = {}) {
 
     setSaving(false)
     setDirty(false)
+    setInitialUseLegacyClaudeCli(settings.providers?.useLegacyClaudeCli !== false)
     onSettingsSaved?.(settings)
   }
+
+  const currentUseLegacyClaudeCli = settings?.providers?.useLegacyClaudeCli !== false
+  const runtimeDirty =
+    initialUseLegacyClaudeCli !== null &&
+    initialUseLegacyClaudeCli !== currentUseLegacyClaudeCli
 
   if (!settings) {
     return (
@@ -409,8 +409,8 @@ export function SettingsPanel({ onSettingsSaved }: SettingsPanelProps = {}) {
           </div>
         )}
 
-        {tab === 'providers' && (
-          <ProvidersTab
+        {tab === 'models' && (
+          <ModelsTab
             providers={
               settings.providers ?? {
                 useLegacyClaudeCli: true,
@@ -420,7 +420,10 @@ export function SettingsPanel({ onSettingsSaved }: SettingsPanelProps = {}) {
                 configuredProviders: {},
               }
             }
-            onChange={(patch) => update('providers', patch)}
+            advanced={settings.advanced}
+            bestOpusModel={bestOpusModel}
+            onProvidersChange={(patch) => update('providers', patch)}
+            onAdvancedChange={(patch) => update('advanced', patch)}
           />
         )}
 
@@ -588,62 +591,8 @@ export function SettingsPanel({ onSettingsSaved }: SettingsPanelProps = {}) {
           <div className="settings-section">
             <h3 className="settings-section-title">{t('settings.advanced.title')}</h3>
 
-            {/* Auto Model Selection Toggle */}
-            <label className="settings-toggle">
-              <span className="settings-toggle-info">
-                <span className="settings-label">
-                  <Zap size={16} style={{ marginRight: 6, verticalAlign: 'text-bottom' }} />
-                  {t('settings.advanced.autoModelSelection')}
-                </span>
-                <span className="settings-desc">{t('settings.advanced.autoModelSelectionDesc')}</span>
-              </span>
-              <input
-                type="checkbox"
-                checked={settings.advanced?.autoModelSelection === true}
-                onChange={(e) =>
-                  update('advanced', { autoModelSelection: e.target.checked })
-                }
-                aria-label="Toggle auto model selection"
-              />
-              <span className="toggle-slider" />
-            </label>
-
-            {/* Default Agent Model Selector (shown when auto is off) */}
-            {settings.advanced?.autoModelSelection !== true && (
-              <div className="settings-field" style={{ marginLeft: 16, opacity: 0.9 }}>
-                <span className="settings-toggle-info">
-                  <span className="settings-label">
-                    {t('settings.advanced.defaultAgentModel')}
-                  </span>
-                  <span className="settings-desc">{t('settings.advanced.defaultAgentModelDesc')}</span>
-                </span>
-                <select
-                  className="settings-select"
-                  value={settings.advanced?.defaultAgentModel || 'opus'}
-                  onChange={(e) =>
-                    update('advanced', { defaultAgentModel: e.target.value as 'haiku' | 'sonnet' | 'opus' })
-                  }
-                >
-                  <option value="haiku">{t('settings.advanced.modelHaiku')}</option>
-                  <option value="sonnet">{t('settings.advanced.modelSonnet')}</option>
-                  <option value="opus">
-                    {t('settings.advanced.modelOpus')}
-                    {bestOpusModel ? ` — ${prettyOpusLabel(bestOpusModel)}` : ''}
-                  </option>
-                </select>
-                {bestOpusModel && (
-                  <span
-                    className="settings-desc"
-                    style={{ marginLeft: 16, display: 'block', marginTop: 4 }}
-                  >
-                    {t('settings.advanced.opusDetected', { model: prettyOpusLabel(bestOpusModel) })}
-                  </span>
-                )}
-              </div>
-            )}
-
             {/* Backup Retention */}
-            <h3 className="settings-section-title" style={{ marginTop: 24 }}>
+            <h3 className="settings-section-title">
               <RotateCw size={16} style={{ marginRight: 6, verticalAlign: 'text-bottom' }} />
               {t('settings.advanced.backupTitle')}
             </h3>
@@ -692,29 +641,6 @@ export function SettingsPanel({ onSettingsSaved }: SettingsPanelProps = {}) {
                 style={{ width: 80 }}
               />
             </div>
-
-            {/* Runtime (Goose ACP vs legacy Claude CLI) */}
-            <h3 className="settings-section-title" style={{ marginTop: 24 }}>
-              <FlaskConical size={16} style={{ marginRight: 6, verticalAlign: 'text-bottom' }} />
-              {t('settings.advanced.runtimeTitle')}
-            </h3>
-            <p className="settings-section-desc">{t('settings.advanced.runtimeDesc')}</p>
-
-            <label className="settings-toggle">
-              <span className="settings-toggle-info">
-                <span className="settings-label">{t('settings.advanced.useLegacyCli')}</span>
-                <span className="settings-desc">{t('settings.advanced.useLegacyCliDesc')}</span>
-              </span>
-              <input
-                type="checkbox"
-                checked={settings.providers?.useLegacyClaudeCli !== false}
-                onChange={(e) =>
-                  update('providers', { useLegacyClaudeCli: e.target.checked })
-                }
-                aria-label="Toggle legacy Claude CLI runtime"
-              />
-              <span className="toggle-slider" />
-            </label>
 
           </div>
         )}
@@ -799,7 +725,15 @@ export function SettingsPanel({ onSettingsSaved }: SettingsPanelProps = {}) {
 
         {dirty && (
           <div className="settings-save-bar">
-            <span>{t('settings.unsavedChanges')}</span>
+            <span>
+              {t('settings.unsavedChanges')}
+              {runtimeDirty && (
+                <span className="settings-save-bar-hint">
+                  {' · '}
+                  {t('settings.models.runtimeApplyHint')}
+                </span>
+              )}
+            </span>
             <button
               className="settings-save-btn"
               onClick={save}

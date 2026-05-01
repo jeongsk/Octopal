@@ -19,6 +19,7 @@
       "general": "General",
       "agents": "Agents",
       "providers": "Providers",
+      "models": "Models",
       "appearance": "Appearance",
       "shortcuts": "Shortcuts",
       "advanced": "Advanced",
@@ -103,6 +104,18 @@
       "runtimeDesc": "Which backend spawns your agents. Defaults to the legacy Claude CLI while Goose 2.0 is in beta.",
       "useLegacyCli": "Use legacy Claude CLI (v0.1.42 path)",
       "useLegacyCliDesc": "When on, agents spawn via the Claude CLI (requires `claude` installed globally). Turn off to use the bundled Goose 2.0 sidecar. Configure API keys in Settings → Providers."
+    },
+    "models": {
+      "runtimeTitle": "Runtime",
+      "runtimeDesc": "Which backend spawns your agents. Other settings on this page only take effect for the selected runtime — Octopal will keep both choices saved so toggling preserves them.",
+      "runtimeClaudeCli": "Claude CLI (recommended)",
+      "runtimeClaudeCliDesc": "Spawns agents through your installed `claude` CLI. Uses Claude's own auth — API keys below are not consumed in this mode.",
+      "runtimeGoose": "Goose (multi-provider, beta)",
+      "runtimeGooseDesc": "Bundled Goose 2.0 sidecar. Reads provider/model and API keys configured below.",
+      "runtimeApplyHint": "Runtime change applies after Save, starting from the next message.",
+      "defaultModelTitle": "Default model",
+      "adaptiveOn": "Adaptive model selection",
+      "keysClaudeCliBanner": "Claude CLI runtime uses `claude`'s own auth. These keys are only consumed by the Goose runtime — you can still save them in advance."
     },
     "providers": {
       "title": "Providers",
