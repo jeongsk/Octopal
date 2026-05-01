@@ -224,9 +224,13 @@ const BUNDLED_CUSTOM_PROVIDERS: &[(&str, &str)] = &[
 /// Sync Octopal's bundled custom-provider templates into Goose's XDG config
 /// dir. Called from `spawn_initialized()` immediately after `xdg.ensure()`.
 ///
-/// Idempotent: writes only when the on-disk content differs from the bundled
-/// bytes. Never deletes templates that no longer ship — leaves user-modified
-/// files alone (auto-deletion is intentionally out of scope).
+/// Idempotent on unchanged content: writes only when the on-disk bytes differ
+/// from the bundled bytes. **Files in `BUNDLED_CUSTOM_PROVIDERS` are
+/// overwritten on every diff — user edits to these managed templates are NOT
+/// preserved.** Customize via env vars or a sidecar overlay (a separate
+/// `custom_providers/<user_*.json>` filename), not by editing managed
+/// templates. Files outside the bundled list are never touched
+/// (auto-deletion of stale templates is intentionally out of scope).
 fn sync_custom_providers(xdg: &GooseXdgRoots) -> Result<(), String> {
     let dir = xdg.config.join("goose").join("custom_providers");
     std::fs::create_dir_all(&dir).map_err(|e| format!("mkdir custom_providers: {e}"))?;
@@ -1956,7 +1960,7 @@ mod tests {
     }
 
     #[test]
-    fn sync_custom_providers_is_idempotent_and_preserves_user_edits() {
+    fn sync_custom_providers_is_idempotent_for_unchanged_content() {
         let tmp = std::env::temp_dir()
             .join(format!("octopal-sync-cp-idem-{}", uuid::Uuid::new_v4().simple()));
         let xdg = GooseXdgRoots::under(&tmp);
