@@ -13,10 +13,10 @@ interface SkillEditModalProps {
 
 function stripFrontmatter(raw: string): string {
   const trimmed = raw.replace(/^﻿/, '')
-  if (!trimmed.startsWith('---')) return raw
+  if (!trimmed.startsWith('---')) return trimmed
   const afterOpener = trimmed.replace(/^---[^\n]*\n/, '')
   const closeIdx = afterOpener.indexOf('\n---')
-  if (closeIdx === -1) return raw
+  if (closeIdx === -1) return trimmed
   return afterOpener.slice(closeIdx + 4).replace(/^\n+/, '')
 }
 
@@ -87,7 +87,11 @@ export function SkillEditModal({
           body,
           enabled,
         })
-        if (res && !res.ok) {
+        if (!res) {
+          setError(t('settings.skills.apiUnavailable'))
+          return
+        }
+        if (!res.ok) {
           setError(res.error)
           return
         }
@@ -106,13 +110,18 @@ export function SkillEditModal({
           body,
           enabled,
         })
-        if (res && !res.ok) {
+        if (!res) {
+          setError(t('settings.skills.apiUnavailable'))
+          return
+        }
+        if (!res.ok) {
           setError(res.error)
           return
         }
         onSaved()
       }
     } catch (e: any) {
+      console.error('[SkillEditModal] save failed', e)
       setError(typeof e === 'string' ? e : e?.message ?? String(e))
     } finally {
       setSaving(false)
@@ -124,12 +133,17 @@ export function SkillEditModal({
     if (!confirm(t('modals.editSkill.deleteConfirm', { name: skill.name }))) return
     try {
       const res = await window.api.deleteSkill?.(skill.path)
-      if (res && !res.ok) {
+      if (!res) {
+        setError(t('settings.skills.apiUnavailable'))
+        return
+      }
+      if (!res.ok) {
         setError(res.error)
         return
       }
       onDeleted()
     } catch (e: any) {
+      console.error('[SkillEditModal] delete failed', e)
       setError(typeof e === 'string' ? e : e?.message ?? String(e))
     }
   }

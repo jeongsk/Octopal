@@ -106,6 +106,12 @@ interface SlashSkill {
 interface SkillForSettings extends SlashSkill {
   enabled: boolean
   raw: string
+  /**
+   * True when the SKILL.md frontmatter could not be parsed. The renderer
+   * disables edit/toggle on such rows so an inadvertent save can't clobber
+   * the user's hand-edited file with empty defaults.
+   */
+  parseFailed?: boolean
 }
 
 type SkillScope = 'workspace' | 'user'

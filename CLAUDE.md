@@ -65,6 +65,7 @@ Key modules in `src-tauri/src/commands/`:
 | `process_pool.rs` | **Persistent** Claude CLI process pool — sessions survive across messages |
 | `model_probe.rs` | Adaptive Claude model detection (incl. Opus availability) |
 | `mcp_config.rs` | Effective-MCP-config resolver: merges global registry + per-agent overlay, drops disabled servers, emits `--disallowed-tools mcp__<server>__<tool>` |
+| `skills.rs` | Skill discovery + CRUD: scans `<workspace>/.claude/skills/`, per-agent dirs, and `~/.claude/skills/`; creates/updates/deletes SKILL.md with frontmatter (de)serializer; structural shape check on mutating paths plus per-agent rejection guard |
 | `file_lock.rs` | Prevents concurrent writes |
 | `files.rs`, `wiki.rs`, `workspace.rs`, `settings.rs`, `backup.rs` | CRUD for those domains |
 
@@ -94,8 +95,11 @@ Spawned Claude CLI processes auto-discover skills from:
 
 - **Workspace** `<workspace>/.claude/skills/<name>/SKILL.md` — visible to every agent (cwd is the workspace folder).
 - **Per-agent** `<workspace>/octopal-agents/<agent>/.claude/skills/<name>/SKILL.md` — visible only to that agent. Wired via `--add-dir <agent_dir>` in `agent.rs`.
+- **User-global** `~/.claude/skills/<name>/SKILL.md` — visible to every agent in every workspace.
 
 The dispatcher process (cwd `.`) is intentionally left out — it routes messages and shouldn't load skills. Live edits to existing `.claude/skills/` directories are picked up without restart, but creating a brand-new skills directory after the agent has spawned requires the next message to restart that agent's pooled process (the Claude CLI watcher only registers directories that existed at session start).
+
+**Edit surfaces**: workspace and user skills are CRUD-editable from Settings → Skills (`SkillsTab.tsx`). Per-agent skills appear in the same list as **read-only** rows (Phase 1 limitation; per-agent CRUD is a follow-up). The toggle on each row writes the `user-invocable: <bool>` frontmatter key — there is **no `state.rs` field for skill toggles**; the SKILL.md frontmatter is the single source of truth. Rows whose frontmatter fails to parse (`parseFailed`) are surfaced as read-only so an inadvertent toggle can't clobber the user's hand-edited file with empty defaults. Skills currently apply only to the Claude CLI runtime; goose ACP runtime injection is a follow-up.
 
 ## MCP
 

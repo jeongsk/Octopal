@@ -20,6 +20,10 @@ pub struct SkillEntry {
 /// the disabled-state flag (so the Skills tab can render `user-invocable: false`
 /// rows without re-parsing) and the raw `SKILL.md` source (so the edit modal
 /// can split the body without an extra round-trip).
+///
+/// `parse_failed` flags rows where the YAML frontmatter could not be parsed.
+/// The renderer surfaces these as non-editable so an inadvertent toggle can't
+/// clobber the user's file with empty defaults.
 #[derive(Serialize, Clone)]
 pub struct SkillForSettings {
     pub name: String,
@@ -30,6 +34,8 @@ pub struct SkillForSettings {
     pub path: String,
     pub enabled: bool,
     pub raw: String,
+    #[serde(rename = "parseFailed")]
+    pub parse_failed: bool,
 }
 
 /// Tiny YAML-frontmatter parser. We only need a flat string-valued subset
@@ -261,21 +267,26 @@ fn read_skill_for_settings(skill_dir: &Path, source: String) -> Option<SkillForS
     let content = fs::read_to_string(&skill_md).ok()?;
     let dir_name = skill_dir.file_name()?.to_string_lossy().to_string();
 
-    let (description, argument_hint, name_override, enabled) = match parse_frontmatter(&content) {
-        Some(fm) => {
-            let user_invocable = fm
-                .get("user-invocable")
-                .map(|v| v.eq_ignore_ascii_case("true"))
-                .unwrap_or(true);
-            (
-                fm.get("description").cloned().unwrap_or_default(),
-                fm.get("argument-hint").cloned(),
-                fm.get("name").cloned(),
-                user_invocable,
-            )
-        }
-        None => (String::new(), None, None, true),
-    };
+    let (description, argument_hint, name_override, enabled, parse_failed) =
+        match parse_frontmatter(&content) {
+            Some(fm) => {
+                let user_invocable = fm
+                    .get("user-invocable")
+                    .map(|v| v.eq_ignore_ascii_case("true"))
+                    .unwrap_or(true);
+                (
+                    fm.get("description").cloned().unwrap_or_default(),
+                    fm.get("argument-hint").cloned(),
+                    fm.get("name").cloned(),
+                    user_invocable,
+                    false,
+                )
+            }
+            // Surface parse failures so the renderer can disable edit/toggle
+            // for the row instead of silently treating the file as
+            // `enabled: true` with empty fields.
+            None => (String::new(), None, None, false, true),
+        };
     Some(SkillForSettings {
         name: name_override.unwrap_or(dir_name),
         description,
@@ -284,6 +295,7 @@ fn read_skill_for_settings(skill_dir: &Path, source: String) -> Option<SkillForS
         path: skill_md.to_string_lossy().to_string(),
         enabled,
         raw: content,
+        parse_failed,
     })
 }
 
@@ -445,8 +457,11 @@ pub fn list_skills_for_settings(folder_path: String) -> Result<Vec<SkillForSetti
 }
 
 /// Read the raw SKILL.md source at `path`. Defense-in-depth path validation:
-/// the path must canonicalize to a file under one of the known skill roots
-/// (workspace `.claude/skills`, per-agent `.claude/skills`, or user `.claude/skills`).
+/// the canonicalized path must match the structural skill layout
+/// `.../.claude/skills/<dirname>/SKILL.md`. This is a shape check, not a
+/// containment check against the active workspace's skill roots — a true
+/// containment validator (canonicalize-then-`starts_with(root)`) would need
+/// the active folder threaded through and is tracked as a follow-up.
 #[tauri::command]
 pub fn read_skill_source(path: String) -> Result<String, String> {
     let p = PathBuf::from(&path);
@@ -480,12 +495,26 @@ fn looks_like_skill_path(canonical: &Path) -> bool {
     true
 }
 
-/// True if the path lies under any `octopal-agents/` directory segment —
-/// per-agent skills are not editable from the Settings panel in Phase 1.
+/// True if the path lies under an `octopal-agents/<agent>/.claude/skills/...`
+/// layout — per-agent skills are not editable from the Settings panel in
+/// Phase 1.
+///
+/// Matches structurally rather than lexically so a user-global skill named
+/// `octopal-agents` (path `~/.claude/skills/octopal-agents/SKILL.md`) is NOT
+/// classified as per-agent. The on-disk per-agent layout is exactly:
+///   <...>/octopal-agents/<agent>/.claude/skills/<name>/SKILL.md
+/// — six segments deep, with `octopal-agents` at index `[-6]`.
 fn is_per_agent_skill_path(canonical: &Path) -> bool {
-    canonical
+    let comps: Vec<&std::ffi::OsStr> = canonical
         .components()
-        .any(|c| c.as_os_str() == "octopal-agents")
+        .map(|c| c.as_os_str())
+        .collect();
+    comps
+        .iter()
+        .rev()
+        .nth(5)
+        .map(|s| *s == "octopal-agents")
+        .unwrap_or(false)
 }
 
 #[tauri::command]
@@ -571,11 +600,16 @@ pub fn create_skill(
             path: Some(skill_md.to_string_lossy().to_string()),
             error: None,
         },
-        Err(e) => CreateResult {
-            ok: false,
-            path: None,
-            error: Some(e.to_string()),
-        },
+        Err(e) => {
+            // Best-effort unwind so a retry with the same name isn't blocked
+            // by the orphaned empty directory.
+            let _ = fs::remove_dir(&skill_dir);
+            CreateResult {
+                ok: false,
+                path: None,
+                error: Some(e.to_string()),
+            }
+        }
     }
 }
 
@@ -625,7 +659,23 @@ pub fn update_skill(
         }
     };
 
-    let fm = parse_frontmatter(&existing).unwrap_or_default();
+    // Refuse to write when the existing frontmatter cannot be parsed —
+    // unwrap_or_default() would silently coerce hand-edited metadata
+    // (name, description, argument-hint) to empty defaults and clobber
+    // the user's file on the next save.
+    let fm = match parse_frontmatter(&existing) {
+        Some(fm) => fm,
+        None => {
+            return CreateResult {
+                ok: false,
+                path: None,
+                error: Some(
+                    "Existing SKILL.md frontmatter is invalid; edit the file directly to fix"
+                        .to_string(),
+                ),
+            }
+        }
+    };
     let existing_body = strip_frontmatter(&existing);
 
     let final_name = name
@@ -1118,6 +1168,175 @@ mod tests {
     fn skill_root_for_scope_rejects_unknown() {
         let err = skill_root_for_scope("agent", None).unwrap_err();
         assert!(err.to_lowercase().contains("scope"));
+    }
+
+    #[test]
+    fn looks_like_skill_path_accepts_valid_layout() {
+        let p = Path::new("/tmp/proj/.claude/skills/demo/SKILL.md");
+        assert!(looks_like_skill_path(p));
+    }
+
+    #[test]
+    fn looks_like_skill_path_rejects_wrong_filename() {
+        let p = Path::new("/tmp/proj/.claude/skills/demo/README.md");
+        assert!(!looks_like_skill_path(p));
+    }
+
+    #[test]
+    fn looks_like_skill_path_rejects_missing_skills_segment() {
+        let p = Path::new("/tmp/proj/.claude/other/demo/SKILL.md");
+        assert!(!looks_like_skill_path(p));
+    }
+
+    #[test]
+    fn looks_like_skill_path_rejects_missing_claude_segment() {
+        let p = Path::new("/tmp/proj/notclaude/skills/demo/SKILL.md");
+        assert!(!looks_like_skill_path(p));
+    }
+
+    #[test]
+    fn looks_like_skill_path_rejects_too_short() {
+        assert!(!looks_like_skill_path(Path::new("SKILL.md")));
+        assert!(!looks_like_skill_path(Path::new("/SKILL.md")));
+        assert!(!looks_like_skill_path(Path::new("/skills/SKILL.md")));
+    }
+
+    #[test]
+    fn read_skill_source_rejects_path_outside_skill_dir() {
+        let tmp = TempDir::new().unwrap();
+        let bad = tmp.path().join("evil.txt");
+        fs::write(&bad, "secret").unwrap();
+        let res = read_skill_source(bad.to_string_lossy().to_string());
+        assert!(res.is_err());
+        assert!(res.unwrap_err().to_lowercase().contains("not under"));
+    }
+
+    #[test]
+    fn read_skill_source_accepts_valid_skill_md() {
+        let tmp = TempDir::new().unwrap();
+        let folder = tmp.path().to_string_lossy().to_string();
+        let created = create_skill(
+            "workspace".to_string(),
+            Some(folder),
+            "readme".to_string(),
+            "desc".to_string(),
+            None,
+            "# body".to_string(),
+            true,
+        );
+        let path = created.path.unwrap();
+        let raw = read_skill_source(path).unwrap();
+        assert!(raw.contains("name: readme"));
+        assert!(raw.contains("# body"));
+    }
+
+    #[test]
+    fn is_per_agent_skill_path_detects_octopal_agents_layout() {
+        assert!(is_per_agent_skill_path(Path::new(
+            "/proj/octopal-agents/dev/.claude/skills/demo/SKILL.md"
+        )));
+        assert!(!is_per_agent_skill_path(Path::new(
+            "/proj/.claude/skills/demo/SKILL.md"
+        )));
+    }
+
+    #[test]
+    fn is_per_agent_skill_path_does_not_false_positive_on_user_skill_named_octopal_agents() {
+        // A user-global skill literally named `octopal-agents` lives at
+        // `~/.claude/skills/octopal-agents/SKILL.md` — that should be editable.
+        assert!(!is_per_agent_skill_path(Path::new(
+            "/home/u/.claude/skills/octopal-agents/SKILL.md"
+        )));
+    }
+
+    #[test]
+    fn update_skill_rejects_per_agent_path() {
+        let tmp = TempDir::new().unwrap();
+        let agent_skill = tmp
+            .path()
+            .join("octopal-agents")
+            .join("dev")
+            .join(".claude")
+            .join("skills")
+            .join("agent-only");
+        fs::create_dir_all(&agent_skill).unwrap();
+        let skill_md = agent_skill.join("SKILL.md");
+        fs::write(&skill_md, "---\nname: agent-only\ndescription: x\n---\n").unwrap();
+
+        let res = update_skill(
+            skill_md.to_string_lossy().to_string(),
+            Some("renamed".to_string()),
+            None,
+            None,
+            None,
+            None,
+        );
+        assert!(!res.ok);
+        assert!(res.error.unwrap().to_lowercase().contains("per-agent"));
+        let after = fs::read_to_string(&skill_md).unwrap();
+        assert!(after.contains("name: agent-only"));
+    }
+
+    #[test]
+    fn delete_skill_rejects_per_agent_path() {
+        let tmp = TempDir::new().unwrap();
+        let agent_skill = tmp
+            .path()
+            .join("octopal-agents")
+            .join("dev")
+            .join(".claude")
+            .join("skills")
+            .join("untouchable");
+        fs::create_dir_all(&agent_skill).unwrap();
+        let skill_md = agent_skill.join("SKILL.md");
+        fs::write(&skill_md, "---\nname: untouchable\ndescription: x\n---\n").unwrap();
+
+        let res = delete_skill(skill_md.to_string_lossy().to_string());
+        assert!(!res.ok);
+        assert!(res.error.unwrap().to_lowercase().contains("per-agent"));
+        assert!(skill_md.exists(), "per-agent skill should not be deleted");
+    }
+
+    #[test]
+    fn update_skill_refuses_corrupt_frontmatter() {
+        let tmp = TempDir::new().unwrap();
+        let folder = tmp.path().to_string_lossy().to_string();
+        let created = create_skill(
+            "workspace".to_string(),
+            Some(folder),
+            "broken".to_string(),
+            "desc".to_string(),
+            None,
+            String::new(),
+            true,
+        );
+        let path = created.path.unwrap();
+        // Corrupt the frontmatter (missing closing fence).
+        fs::write(&path, "---\nname: broken\ndescription: not closed\n").unwrap();
+
+        let res = update_skill(path.clone(), None, None, None, None, Some(false));
+        assert!(!res.ok);
+        let err = res.error.unwrap().to_lowercase();
+        assert!(err.contains("frontmatter") && err.contains("invalid"));
+        // File should be unchanged.
+        let after = fs::read_to_string(&path).unwrap();
+        assert_eq!(after, "---\nname: broken\ndescription: not closed\n");
+    }
+
+    #[test]
+    fn list_skills_for_settings_marks_corrupt_frontmatter_as_parse_failed() {
+        let tmp = TempDir::new().unwrap();
+        let folder = tmp.path().to_string_lossy().to_string();
+        let skills_root = tmp.path().join(".claude").join("skills").join("broken");
+        fs::create_dir_all(&skills_root).unwrap();
+        // No closing fence — parse_frontmatter returns None.
+        fs::write(skills_root.join("SKILL.md"), "---\nname: broken\n").unwrap();
+
+        let list = list_skills_for_settings(folder).unwrap();
+        let broken = list.iter().find(|s| s.name == "broken").unwrap();
+        assert!(broken.parse_failed);
+        // Disabled by default so the renderer doesn't show it as "active".
+        assert!(!broken.enabled);
     }
 
     #[test]

@@ -119,6 +119,7 @@
       "descriptionRequired": "Description is required.",
       "nameInvalid": "Name can only contain letters, numbers, hyphens, and underscores.",
       "duplicateName": "A skill named \"{{name}}\" already exists in this scope.",
+      "apiUnavailable": "Skill management is not available in this build.",
       "runtimeFootnote": "Skills currently apply to the Claude CLI runtime only. Goose runtime support is in progress."
     },
     "advanced": {

@@ -119,6 +119,7 @@
       "descriptionRequired": "설명을 입력해주세요.",
       "nameInvalid": "이름은 영문/숫자/하이픈/밑줄만 사용할 수 있습니다.",
       "duplicateName": "이 범위에 \"{{name}}\" 스킬이 이미 존재합니다.",
+      "apiUnavailable": "이 빌드에서는 스킬 관리를 사용할 수 없습니다.",
       "runtimeFootnote": "스킬은 현재 Claude CLI 런타임에서만 적용됩니다. Goose 런타임 지원은 진행 중입니다."
     },
     "advanced": {

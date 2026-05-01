@@ -68,12 +68,17 @@ export function SkillsTab({ activeFolder }: SkillsTabProps) {
     if (!confirm(t('settings.skills.deleteConfirm', { name: skill.name }))) return
     try {
       const res = await window.api.deleteSkill?.(skill.path)
-      if (res && !res.ok) {
+      if (!res) {
+        setError(t('settings.skills.apiUnavailable'))
+        return
+      }
+      if (!res.ok) {
         setError(res.error)
         return
       }
       await refresh()
     } catch (e: any) {
+      console.error('[SkillsTab] deleteSkill failed', e)
       setError(typeof e === 'string' ? e : e?.message ?? String(e))
     }
   }
@@ -86,11 +91,17 @@ export function SkillsTab({ activeFolder }: SkillsTabProps) {
     )
     try {
       const res = await window.api.updateSkill?.({ path: skill.path, enabled: next })
-      if (res && !res.ok) {
+      if (!res) {
+        setError(t('settings.skills.apiUnavailable'))
+        await refresh()
+        return
+      }
+      if (!res.ok) {
         setError(res.error)
         await refresh()
       }
     } catch (e: any) {
+      console.error('[SkillsTab] updateSkill failed', e)
       setError(typeof e === 'string' ? e : e?.message ?? String(e))
       await refresh()
     }
@@ -138,6 +149,10 @@ export function SkillsTab({ activeFolder }: SkillsTabProps) {
         <div className="text-shortcut-list">
           {skills.map((skill) => {
             const agentReadOnly = isAgentScope(skill.source)
+            const parseFailed = skill.parseFailed === true
+            // Parse-failed rows are read-only so a stray toggle can't clobber
+            // the user's hand-edited file with empty defaults.
+            const readOnly = agentReadOnly || parseFailed
             return (
               <div key={skill.path} className="text-shortcut-row">
                 <div className="text-shortcut-trigger">
@@ -151,7 +166,15 @@ export function SkillsTab({ activeFolder }: SkillsTabProps) {
                     style={{ marginTop: 4, fontSize: 12, opacity: 0.7 }}
                   >
                     {scopeLabel(skill.source, t)}
-                    {!skill.enabled && (
+                    {parseFailed && (
+                      <>
+                        {' · '}
+                        <span style={{ fontStyle: 'italic', color: 'var(--danger, #c33)' }}>
+                          {t('settings.skills.frontmatterError', { reason: skill.path })}
+                        </span>
+                      </>
+                    )}
+                    {!skill.enabled && !parseFailed && (
                       <>
                         {' · '}
                         <span style={{ fontStyle: 'italic' }}>
@@ -173,7 +196,7 @@ export function SkillsTab({ activeFolder }: SkillsTabProps) {
                   <input
                     type="checkbox"
                     checked={skill.enabled}
-                    disabled={agentReadOnly}
+                    disabled={readOnly}
                     onChange={(e) => handleToggle(skill, e.target.checked)}
                   />
                   <span className="toggle-slider" />
@@ -185,8 +208,8 @@ export function SkillsTab({ activeFolder }: SkillsTabProps) {
                       ? t('settings.skills.agentReadOnlyHint')
                       : t('common.edit')
                   }
-                  disabled={agentReadOnly}
-                  aria-disabled={agentReadOnly}
+                  disabled={readOnly}
+                  aria-disabled={readOnly}
                   onClick={() => openEdit(skill)}
                 >
                   <Pencil size={14} />
@@ -198,8 +221,8 @@ export function SkillsTab({ activeFolder }: SkillsTabProps) {
                       ? t('settings.skills.agentReadOnlyHint')
                       : t('common.delete')
                   }
-                  disabled={agentReadOnly}
-                  aria-disabled={agentReadOnly}
+                  disabled={readOnly}
+                  aria-disabled={readOnly}
                   onClick={() => handleDelete(skill)}
                 >
                   <Trash2 size={14} />
