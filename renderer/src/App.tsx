@@ -199,14 +199,23 @@ export function App() {
             `${ap.chatFontSize}px`
           )
         }
-        document.documentElement.style.setProperty(
-          '--ui-font-family',
-          getFontStack(ap.interfaceFont ?? 'system', 'ui')
-        )
-        document.documentElement.style.setProperty(
-          '--chat-font-family',
-          getFontStack(ap.chatFont ?? 'system', 'chat')
-        )
+        // Skip inline writes for catalog defaults so locale CSS rules
+        // (e.g. html[lang='ko'] Pretendard override) keep cascading.
+        const interfaceFont = ap.interfaceFont ?? 'system'
+        if (interfaceFont !== 'system') {
+          document.documentElement.style.setProperty(
+            '--ui-font-family',
+            getFontStack(interfaceFont, 'ui')
+          )
+        }
+        const chatFont = ap.chatFont ?? 'system'
+        if (chatFont !== 'system') {
+          document.documentElement.style.setProperty(
+            '--chat-font-family',
+            getFontStack(chatFont, 'chat')
+          )
+        }
+        // Code role has no locale override; always safe to set.
         document.documentElement.style.setProperty(
           '--code-font-family',
           getFontStack(ap.codeBlockFont ?? 'sf-mono', 'code')

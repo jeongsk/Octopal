@@ -19,6 +19,7 @@ import {
 } from 'lucide-react'
 import { ModelsTab } from './settings/ModelsTab'
 import { CHAT_FONTS, CODE_FONTS, INTERFACE_FONTS, getFontStack } from './settings/fonts'
+import { showToast } from './Toast'
 
 type SettingsTab = 'general' | 'agents' | 'models' | 'appearance' | 'shortcuts' | 'advanced' | 'about'
 
@@ -233,30 +234,53 @@ export function SettingsPanel({ onSettingsSaved }: SettingsPanelProps = {}) {
   const save = async () => {
     if (!settings || !dirty) return
     setSaving(true)
-    await window.api.saveSettings(settings)
+    try {
+      await window.api.saveSettings(settings)
 
-    // Apply font size + families to document
-    document.documentElement.style.setProperty(
-      '--chat-font-size',
-      `${settings.appearance.chatFontSize}px`
-    )
-    document.documentElement.style.setProperty(
-      '--ui-font-family',
-      getFontStack(settings.appearance.interfaceFont, 'ui')
-    )
-    document.documentElement.style.setProperty(
-      '--chat-font-family',
-      getFontStack(settings.appearance.chatFont, 'chat')
-    )
-    document.documentElement.style.setProperty(
-      '--code-font-family',
-      getFontStack(settings.appearance.codeBlockFont, 'code')
-    )
+      document.documentElement.style.setProperty(
+        '--chat-font-size',
+        `${settings.appearance.chatFontSize}px`
+      )
+      // Mirror App.tsx boot logic: 'system' yields to locale CSS rules
+      // (html[lang='ko']) — remove inline override instead of writing one.
+      const interfaceFont = settings.appearance.interfaceFont
+      if (interfaceFont && interfaceFont !== 'system') {
+        document.documentElement.style.setProperty(
+          '--ui-font-family',
+          getFontStack(interfaceFont, 'ui')
+        )
+      } else {
+        document.documentElement.style.removeProperty('--ui-font-family')
+      }
+      const chatFont = settings.appearance.chatFont
+      if (chatFont && chatFont !== 'system') {
+        document.documentElement.style.setProperty(
+          '--chat-font-family',
+          getFontStack(chatFont, 'chat')
+        )
+      } else {
+        document.documentElement.style.removeProperty('--chat-font-family')
+      }
+      document.documentElement.style.setProperty(
+        '--code-font-family',
+        getFontStack(settings.appearance.codeBlockFont, 'code')
+      )
 
-    setSaving(false)
-    setDirty(false)
-    setInitialUseLegacyClaudeCli(settings.providers?.useLegacyClaudeCli !== false)
-    onSettingsSaved?.(settings)
+      setDirty(false)
+      setInitialUseLegacyClaudeCli(settings.providers?.useLegacyClaudeCli !== false)
+      onSettingsSaved?.(settings)
+    } catch (err) {
+      console.error('saveSettings failed:', err)
+      showToast({
+        type: 'error',
+        title: t('settings.saveFailedTitle'),
+        message: t('settings.saveFailedMessage'),
+        duration: 6000,
+      })
+      // dirty stays true so user can retry
+    } finally {
+      setSaving(false)
+    }
   }
 
   const currentUseLegacyClaudeCli = settings?.providers?.useLegacyClaudeCli !== false

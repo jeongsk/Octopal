@@ -605,6 +605,31 @@ mod migration_tests {
     }
 
     #[test]
+    fn appearance_settings_roundtrips_with_font_fields() {
+        // Guards against accidental drop of #[serde(rename = "...")] on the
+        // font fields — without rename, every restart would silently reset
+        // the user's font choice.
+        let original = AppearanceSettings {
+            chat_font_size: 18,
+            theme: "dark".to_string(),
+            interface_font: "outfit".to_string(),
+            chat_font: "pretendard".to_string(),
+            code_block_font: "jetbrains-mono".to_string(),
+        };
+        let s = serde_json::to_string(&original).unwrap();
+        assert!(s.contains("\"interfaceFont\":\"outfit\""), "wire JSON: {s}");
+        assert!(s.contains("\"chatFont\":\"pretendard\""), "wire JSON: {s}");
+        assert!(
+            s.contains("\"codeBlockFont\":\"jetbrains-mono\""),
+            "wire JSON: {s}"
+        );
+        let back: AppearanceSettings = serde_json::from_str(&s).unwrap();
+        assert_eq!(back.interface_font, "outfit");
+        assert_eq!(back.chat_font, "pretendard");
+        assert_eq!(back.code_block_font, "jetbrains-mono");
+    }
+
+    #[test]
     fn providers_settings_roundtrips_with_configured_map() {
         let mut cfg = std::collections::BTreeMap::new();
         cfg.insert("anthropic".to_string(), true);

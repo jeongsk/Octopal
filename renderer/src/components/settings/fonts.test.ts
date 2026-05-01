@@ -62,6 +62,22 @@ describe('getFontStack', () => {
     const ui = getFontStack('sf-mono', 'ui')
     expect(ui).not.toContain('SF Mono')
     expect(ui).toContain('sans-serif')
+
+    // Reverse direction: a UI/chat font must NOT leak into the code role.
+    const code = getFontStack('outfit', 'code')
+    expect(code).not.toContain('Outfit')
+    expect(code).toContain('monospace')
+  })
+
+  it('returns role default when id is empty or undefined', () => {
+    // Settings.json crosses an IPC boundary; corrupted/missing values can
+    // arrive as '' or undefined. Array.find safely misses → role default.
+    expect(getFontStack('', 'ui')).toContain('sans-serif')
+    expect(getFontStack('', 'chat')).toContain('sans-serif')
+    expect(getFontStack('', 'code')).toContain('monospace')
+    expect(getFontStack(undefined as unknown as string, 'ui')).toContain('sans-serif')
+    expect(getFontStack(undefined as unknown as string, 'chat')).toContain('sans-serif')
+    expect(getFontStack(undefined as unknown as string, 'code')).toContain('monospace')
   })
 
   it('resolves known ids to their declared stack', () => {

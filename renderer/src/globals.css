@@ -2669,7 +2669,7 @@ button {
   border-radius: var(--radius-sm, 6px);
   padding: 10px 14px;
   margin: 10px 0;
-  font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+  font-family: var(--code-font-family);
   font-size: 13px;
   color: var(--text-heading);
   user-select: all;
@@ -3442,7 +3442,7 @@ button {
   background: transparent;
   border: none;
   color: var(--text-primary);
-  font-family: 'SF Mono', Monaco, Consolas, monospace;
+  font-family: var(--code-font-family);
   font-size: var(--font-sm);
   resize: none;
   outline: none;
@@ -4330,7 +4330,7 @@ button {
 
 /* Monospace textarea for code/prompt editing */
 .modal-textarea--mono {
-  font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', 'JetBrains Mono', ui-monospace, monospace;
+  font-family: var(--code-font-family);
   font-size: 12px;
   line-height: 1.5;
   min-height: 240px;
@@ -4631,6 +4631,30 @@ button {
 .settings-select:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* Font picker: select + live preview chip */
+.settings-font-picker {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.settings-font-preview {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-elevated, #23262e);
+  color: var(--text-secondary, #b8b8b8);
+  font-size: 13px;
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 320px;
 }
 
 /* Segmented control (e.g. theme: System / Light / Dark) */
