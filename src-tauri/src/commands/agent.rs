@@ -121,6 +121,7 @@ pub async fn check_claude_cli() -> Result<serde_json::Value, String> {
 pub async fn send_message(
     folder_path: String,
     octo_path: String,
+    conversation_id: String,
     prompt: String,
     user_ts: f64,
     run_id: String,
@@ -353,11 +354,25 @@ pub async fn send_message(
     let mut history_prefix = String::new();
 
     if !is_isolated {
-        let room_history_path = Path::new(&folder_path)
+        // Per-conversation history lives at .octopal/conversations/<id>.json.
+        // Falls back to the legacy room-history.json so a freshly migrated
+        // folder still surfaces context if the conversation file isn't on
+        // disk yet.
+        let conversation_path = Path::new(&folder_path)
+            .join(".octopal")
+            .join("conversations")
+            .join(format!("{}.json", conversation_id));
+        let legacy_path = Path::new(&folder_path)
             .join(".octopal")
             .join("room-history.json");
 
-        let all_msgs: Vec<serde_json::Value> = fs::read_to_string(&room_history_path)
+        let history_path = if conversation_path.exists() {
+            conversation_path
+        } else {
+            legacy_path
+        };
+
+        let all_msgs: Vec<serde_json::Value> = fs::read_to_string(&history_path)
             .ok()
             .and_then(|s| serde_json::from_str(&s).ok())
             .unwrap_or_default();
@@ -779,7 +794,7 @@ pub async fn send_message(
         return crate::commands::goose_acp::run_agent_turn(&app, &state, params).await;
     }
 
-    let pool_key = format!("{}::{}", folder_path, agent_name);
+    let pool_key = super::process_pool::pool_key(&folder_path, &agent_name, &conversation_id);
     let pool_key_clone = pool_key.clone();
     let claude_args_clone = claude_args.clone();
 
@@ -1164,19 +1179,17 @@ pub async fn send_message(
             fs::write(&octo_path, serde_json::to_string_pretty(&octo).unwrap())
                 .map_err(|e| e.to_string())?;
 
-            // Append to room history
-            let room_history_path = Path::new(&folder_path)
-                .join(".octopal")
-                .join("room-history.json");
-            let octopal_dir = Path::new(&folder_path).join(".octopal");
-            fs::create_dir_all(&octopal_dir).ok();
+            // Append to the per-conversation history file.
+            let conv_dir = Path::new(&folder_path).join(".octopal").join("conversations");
+            fs::create_dir_all(&conv_dir).ok();
+            let conversation_path = conv_dir.join(format!("{}.json", conversation_id));
 
             // Rotate if the file has grown past our size threshold. Idempotent
             // + safe if the file is missing or malformed.
-            crate::commands::folder::maybe_rotate_room_history(&room_history_path);
+            crate::commands::folder::maybe_rotate_history(&conversation_path);
 
-            let mut room_history: Vec<serde_json::Value> = if room_history_path.exists() {
-                fs::read_to_string(&room_history_path)
+            let mut conv_history: Vec<serde_json::Value> = if conversation_path.exists() {
+                fs::read_to_string(&conversation_path)
                     .ok()
                     .and_then(|s| serde_json::from_str(&s).ok())
                     .unwrap_or_default()
@@ -1192,23 +1205,51 @@ pub async fn send_message(
             let entry_id = pending_id
                 .clone()
                 .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+            let response_ts = chrono::Utc::now().timestamp_millis() as f64;
             let mut history_entry = serde_json::json!({
                 "id": entry_id,
                 "agentName": agent_name,
                 "text": output,
-                "ts": chrono::Utc::now().timestamp_millis() as f64,
+                "ts": response_ts,
             });
             // Persist usage data so it survives reload
             if let Some(ref u) = usage {
                 history_entry["usage"] = serde_json::to_value(u).unwrap_or_default();
             }
-            room_history.push(history_entry);
+            conv_history.push(history_entry);
 
-            fs::write(
-                &room_history_path,
-                serde_json::to_string_pretty(&room_history).unwrap(),
-            )
-            .ok();
+            // Atomic write: stage to <conv-id>.json.tmp then rename into
+            // place. The previous `.unwrap()` could panic the worker thread
+            // on a serialize failure; the bare `.ok()` silently dropped I/O
+            // errors so the user could "lose" an assistant reply on reload
+            // with no record of why.
+            let write_result = serde_json::to_string_pretty(&conv_history)
+                .map_err(|e| format!("serialize: {}", e))
+                .and_then(|json| {
+                    let tmp = conversation_path.with_extension("json.tmp");
+                    fs::write(&tmp, json).map_err(|e| format!("write tmp: {}", e))?;
+                    fs::rename(&tmp, &conversation_path)
+                        .map_err(|e| format!("rename: {}", e))
+                });
+            if let Err(e) = write_result {
+                eprintln!(
+                    "[octopal] failed to persist assistant reply for {}: {}",
+                    conversation_id, e
+                );
+            }
+
+            // Update conversations index (lastSnippet / messageCount / updatedAt).
+            if let Err(e) = crate::commands::folder::touch_conversation_meta(
+                &folder_path,
+                &conversation_id,
+                &output,
+                response_ts,
+            ) {
+                eprintln!(
+                    "[octopal] touch_conversation_meta failed for {}: {}",
+                    conversation_id, e
+                );
+            }
 
             Ok(SendResult {
                 ok: true,

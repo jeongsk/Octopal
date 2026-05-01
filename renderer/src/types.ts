@@ -1,3 +1,12 @@
+export interface Conversation {
+  id: string
+  title: string
+  createdAt: number
+  updatedAt: number
+  lastSnippet?: string
+  messageCount: number
+}
+
 export interface Attachment {
   id: string
   type: 'image' | 'text'

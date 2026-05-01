@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { mergeWithPending } from './utils'
 import { useTranslation } from 'react-i18next'
 import './i18n'
-import type { ActivityLogEntry, Attachment, InterruptConfirm, Message, PermissionRequest, TokenUsage } from './types'
+import type { ActivityLogEntry, Attachment, Conversation, InterruptConfirm, Message, PermissionRequest, TokenUsage } from './types'
 import { LeftSidebar } from './components/LeftSidebar'
 import { ChatPanel } from './components/ChatPanel'
 import { WikiPanel } from './components/WikiPanel'
@@ -15,10 +15,12 @@ import { OpenFolderModal } from './components/modals/OpenFolderModal'
 import { EditAgentModal } from './components/modals/EditAgentModal'
 import { ClaudeLoginModal } from './components/modals/ClaudeLoginModal'
 import { FileAccessApprovalModal, type FileAccessDecision } from './components/modals/FileAccessApprovalModal'
+import { RenameConversationModal } from './components/modals/RenameConversationModal'
 import { SettingsPanel } from './components/SettingsPanel'
 import { TaskBoard } from './components/TaskBoard'
 import { ToastContainer, showToast } from './components/Toast'
 import { expandShortcut } from './shortcut-expander'
+import { convKey, sortConversations } from './components/Conversations/conversation-helpers'
 
 /** Race a promise against a timeout. Rejects with a descriptive error if ms elapses. */
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
@@ -34,9 +36,20 @@ export function App() {
   const [state, setState] = useState<AppState>({ workspaces: [], activeWorkspaceId: null })
   const [activeFolder, setActiveFolder] = useState<string | null>(null)
   const [octos, setOctos] = useState<OctoFile[]>([])
+  // Conversations per folder (sorted by updatedAt desc) and the active id per folder.
+  // Together with `convKey()` these scope `messages`, `hasMoreMessages`, and the
+  // process-pool / agent-lock keys to a specific conversation inside a folder.
+  const [conversations, setConversations] = useState<Record<string, Conversation[]>>({})
+  const [activeConversationId, setActiveConversationId] = useState<Record<string, string>>({})
+  // Messages are keyed by `${folderPath}::${conversationId}` (see `convKey()`).
   const [messages, setMessages] = useState<Record<string, Message[]>>({})
-  // Track whether there are more (older) messages to load per folder
+  // Track whether there are more (older) messages to load per conversation.
   const [hasMoreMessages, setHasMoreMessages] = useState<Record<string, boolean>>({})
+  // Conversation rename modal
+  const [renamingConversation, setRenamingConversation] = useState<{
+    folderPath: string
+    conversation: Conversation
+  } | null>(null)
   const [loadingMore, setLoadingMore] = useState(false)
   const PAGE_SIZE = 50
   // Activity log of concrete actions (write/edit/bash/webfetch), keyed by folder
@@ -65,8 +78,9 @@ export function App() {
     blocked?: boolean
   } | null>(null)
 
-  // runId -> { folderPath, messageId } so activity events can find the right bubble
-  const runMapRef = useRef<Map<string, { folderPath: string; messageId: string }>>(new Map())
+  // runId -> { folderPath, conversationId, messageId } so activity events can
+  // find the right bubble even after the user switches conversations.
+  const runMapRef = useRef<Map<string, { folderPath: string; conversationId: string; messageId: string }>>(new Map())
 
   // Per-agent FIFO lock — key is `${folderPath}::${agentNameLower}`.
   // When an invokeAgent call starts, it awaits the previous promise on this key,
@@ -87,6 +101,7 @@ export function App() {
     resolve: (confirmed: boolean) => void
     messageId: string
     folderPath: string
+    conversationId: string
     runningAgents: string[]
     bufferedText: string
     bufferedAttachments: Attachment[]
@@ -96,6 +111,7 @@ export function App() {
   // Track active chain runs for completion reporting — key is `chain-${userTs}`
   const activeChainRef = useRef<Map<string, {
     folderPath: string
+    conversationId: string
     userTs: number
     originalPrompt: string
     agents: Set<string>           // agents involved in this chain
@@ -113,6 +129,7 @@ export function App() {
   const DEBOUNCE_MS = 1200
   const bufferRef = useRef<{
     folderPath: string
+    conversationId: string
     messages: Array<{ text: string; ts: number; attachments?: Attachment[] }>
     timer: ReturnType<typeof setTimeout> | null
   } | null>(null)
@@ -301,18 +318,40 @@ export function App() {
       const existingOctos = await window.api.listOctos(folder)
       setOctos(existingOctos)
 
+      // Load conversation list (backend seeds one if the folder is empty and
+      // migrates legacy room-history.json on first load).
+      const conversationList = sortConversations(await window.api.listConversations(folder))
+      setConversations((prev) => ({ ...prev, [folder]: conversationList }))
+
+      // Pick an active conversation: previously-selected one if still valid,
+      // otherwise the most recent.
+      const previouslyActive = activeConversationId[folder]
+      const targetConv = conversationList.find((c) => c.id === previouslyActive)
+        ?? conversationList[0]
+      const conversationId = targetConv?.id
+      if (!conversationId) {
+        // Should never happen — backend invariant guarantees ≥1 conversation.
+        return
+      }
+      setActiveConversationId((prev) => ({ ...prev, [folder]: conversationId }))
+      const messagesKey = convKey(folder, conversationId)
+
       // Load history
-      const { messages: history, hasMore } = await window.api.loadHistoryPaged({ folderPath: folder, limit: PAGE_SIZE })
-      setHasMoreMessages((prev) => ({ ...prev, [folder]: hasMore }))
+      const { messages: history, hasMore } = await window.api.loadHistoryPaged({
+        folderPath: folder,
+        conversationId,
+        limit: PAGE_SIZE,
+      })
+      setHasMoreMessages((prev) => ({ ...prev, [messagesKey]: hasMore }))
       setMessages((prev) => {
         // Preserve in-memory pending messages (not yet persisted to disk)
-        const existing = prev[folder] || []
+        const existing = prev[messagesKey] || []
         const pendingMessages = existing.filter((m) => m.pending)
         const loaded = history.map(m => ({ ...m, text: sanitizeDisplayText(m.text ?? '') }))
         // Merge: loaded history + any pending messages not already in the loaded set
         const loadedIds = new Set(loaded.map((m) => m.id))
         const missingPending = pendingMessages.filter((m) => !loadedIds.has(m.id))
-        return { ...prev, [folder]: [...loaded, ...missingPending] }
+        return { ...prev, [messagesKey]: [...loaded, ...missingPending] }
       })
 
       // Auto-send greeting from assistant on fresh folders (no history yet)
@@ -322,12 +361,12 @@ export function App() {
         const ts = Date.now()
         const pendingId = `p-${ts}-assistant-first`
         const runId = `run-${ts}-assistant-first-${Math.random().toString(36).slice(2, 8)}`
-        runMapRef.current.set(runId, { folderPath: folder, messageId: pendingId })
+        runMapRef.current.set(runId, { folderPath: folder, conversationId, messageId: pendingId })
 
         setMessages((prev) => ({
           ...prev,
-          [folder]: [
-            ...(prev[folder] || []),
+          [messagesKey]: [
+            ...(prev[messagesKey] || []),
             {
               id: pendingId,
               agentName: 'assistant',
@@ -391,6 +430,7 @@ export function App() {
         const res = await window.api.sendMessage({
           folderPath: folder,
           octoPath: assistant.path,
+          conversationId,
           prompt: firstPrompt,
           userTs: ts,
           runId,
@@ -401,13 +441,13 @@ export function App() {
         runMapRef.current.delete(runId)
 
         setMessages((prev) => {
-          const list = prev[folder] || []
+          const list = prev[messagesKey] || []
           const rawText = res.ok ? res.output : `Error: ${(res as any).error}`
           const permReq = res.ok ? parsePermissionRequest(rawText, assistant.name) : undefined
           const usage = res.ok ? (res as any).usage : undefined
           return {
             ...prev,
-            [folder]: list.map((m) =>
+            [messagesKey]: list.map((m) =>
               m.id === pendingId
                 ? {
                     ...m,
@@ -427,13 +467,17 @@ export function App() {
       // Hydrate pending-handoff state from disk so the Approve/Dismiss
       // buttons survive window reloads. The persisted blob uses
       // { handoffs: { [messageId]: ctx } } with Sets stored as arrays.
+      // Older blobs without `conversationId` are assumed to belong to the
+      // currently-loaded conversation (best-effort fallback for upgrades).
       let hydratedHandoffs = new Map<string, any>()
       try {
         const raw = await window.api.readPendingState(folder)
         const entries = (raw?.handoffs ?? {}) as Record<string, any>
         for (const [id, ctx] of Object.entries(entries)) {
+          const ctxConvId = ctx.conversationId ?? conversationId
           hydratedHandoffs.set(id, {
             folderPath: ctx.folderPath,
+            conversationId: ctxConvId,
             speakerName: ctx.speakerName,
             speakerOutput: ctx.speakerOutput,
             nextTargetPaths: ctx.nextTargetPaths || [],
@@ -444,6 +488,7 @@ export function App() {
           })
           pendingHandoffsRef.current.set(id, {
             folderPath: ctx.folderPath,
+            conversationId: ctxConvId,
             speakerName: ctx.speakerName,
             speakerOutput: ctx.speakerOutput,
             nextTargetPaths: ctx.nextTargetPaths || [],
@@ -458,7 +503,7 @@ export function App() {
       }
 
       setMessages((prev) => {
-        const existing = prev[folder] || []
+        const existing = prev[messagesKey] || []
         // Preserve pending messages and unresolved permission requests (in-memory only)
         const preserveMessages = existing.filter(
           (m) => m.pending || (m.permissionRequest && m.permissionRequest.granted === undefined)
@@ -481,7 +526,7 @@ export function App() {
         // never see raw <HANDOFF> or <!--NEEDS_PERMISSIONS--> markup.
         const cleanHistory = history.map(m => ({ ...m, text: sanitizeDisplayText(m.text ?? '') }))
         if (preserveMessages.length === 0) {
-          return { ...prev, [folder]: cleanHistory.map(attachHandoff) }
+          return { ...prev, [messagesKey]: cleanHistory.map(attachHandoff) }
         }
         const historyIds = new Set(cleanHistory.map((m) => m.id))
         const missingPreserved = preserveMessages.filter((m) => !historyIds.has(m.id))
@@ -502,7 +547,7 @@ export function App() {
         const combined = [...mergedHistory, ...missingPreserved].sort(
           (a, b) => (a.ts ?? 0) - (b.ts ?? 0)
         )
-        return { ...prev, [folder]: combined }
+        return { ...prev, [messagesKey]: combined }
       })
     }
 
@@ -512,10 +557,13 @@ export function App() {
   // Load older messages (called when user scrolls to top)
   const loadMoreMessages = async () => {
     if (!activeFolder || loadingMore) return
-    if (!hasMoreMessages[activeFolder]) return
+    const conversationId = activeConversationId[activeFolder]
+    if (!conversationId) return
+    const messagesKey = convKey(activeFolder, conversationId)
+    if (!hasMoreMessages[messagesKey]) return
 
     setLoadingMore(true)
-    const currentMessages = messages[activeFolder] || []
+    const currentMessages = messages[messagesKey] || []
     // Find the oldest non-pending message's timestamp
     const oldestTs = currentMessages.find((m) => !m.pending)?.ts
     if (oldestTs == null) {
@@ -525,18 +573,19 @@ export function App() {
 
     const { messages: older, hasMore } = await window.api.loadHistoryPaged({
       folderPath: activeFolder,
+      conversationId,
       limit: PAGE_SIZE,
       beforeTs: oldestTs,
     })
 
-    setHasMoreMessages((prev) => ({ ...prev, [activeFolder]: hasMore }))
+    setHasMoreMessages((prev) => ({ ...prev, [messagesKey]: hasMore }))
     setMessages((prev) => {
-      const existing = prev[activeFolder] || []
+      const existing = prev[messagesKey] || []
       const existingIds = new Set(existing.map((m) => m.id))
       const newOlder = older
         .filter((m) => !existingIds.has(m.id))
         .map(m => ({ ...m, text: sanitizeDisplayText(m.text ?? '') }))
-      return { ...prev, [activeFolder]: [...newOlder, ...existing] }
+      return { ...prev, [messagesKey]: [...newOlder, ...existing] }
     })
     setLoadingMore(false)
   }
@@ -553,16 +602,31 @@ export function App() {
   // Watch for .octo file changes in the active folder (cross-window sync)
   useEffect(() => {
     const unsubscribe = window.api.onOctosChanged((changedFolder) => {
-      if (changedFolder === activeFolder) {
-        // Refresh the agent list in the sidebar
-        window.api.listOctos(changedFolder).then(setOctos)
+      if (changedFolder !== activeFolder) return
+      const conversationId = activeConversationId[changedFolder]
+      if (!conversationId) return
+      const messagesKey = convKey(changedFolder, conversationId)
 
-        // Refresh chat messages (merge with in-flight pending messages)
-        window.api.loadHistoryPaged({ folderPath: changedFolder, limit: PAGE_SIZE }).then(({ messages: history, hasMore }) => {
-          setHasMoreMessages((prev) => ({ ...prev, [changedFolder]: hasMore }))
+      // Refresh the agent list in the sidebar
+      window.api.listOctos(changedFolder).then(setOctos)
+
+      // Refresh the conversations index (e.g. assistant write bumped updatedAt)
+      window.api.listConversations(changedFolder).then((list) => {
+        setConversations((prev) => ({ ...prev, [changedFolder]: sortConversations(list) }))
+      })
+
+      // Reload only the active conversation's messages — other conversations
+      // may have been written to by background runs but we don't surface them
+      // until the user switches to them.
+      window.api.loadHistoryPaged({
+        folderPath: changedFolder,
+        conversationId,
+        limit: PAGE_SIZE,
+      }).then(({ messages: history, hasMore }) => {
+          setHasMoreMessages((prev) => ({ ...prev, [messagesKey]: hasMore }))
           const cleanHistory = history.map(m => ({ ...m, text: sanitizeDisplayText(m.text ?? '') }))
           setMessages((prev) => {
-            const existing = prev[changedFolder] || []
+            const existing = prev[messagesKey] || []
             // Preserve in-memory-only state that doesn't exist in room-history.json:
             // pending messages, unresolved permission requests, AND unresolved handoff approvals.
             // Without this, the folder watcher's hot-reload wipes the Approve/Dismiss buttons
@@ -573,7 +637,7 @@ export function App() {
                 || (m.handoff && m.handoff.approved === undefined)
             )
             if (preserveMessages.length === 0) {
-              return { ...prev, [changedFolder]: cleanHistory }
+              return { ...prev, [messagesKey]: cleanHistory }
             }
             const historyIds = new Set(cleanHistory.map((m) => m.id))
             const missingPreserved = preserveMessages.filter((m) => !historyIds.has(m.id))
@@ -602,13 +666,12 @@ export function App() {
             const combined = [...mergedHistory, ...missingPreserved].sort(
               (a, b) => (a.ts ?? 0) - (b.ts ?? 0)
             )
-            return { ...prev, [changedFolder]: combined }
+            return { ...prev, [messagesKey]: combined }
           })
         })
-      }
     })
     return unsubscribe
-  }, [activeFolder])
+  }, [activeFolder, activeConversationId])
 
   // Run MCP health checks when agents change
   useEffect(() => {
@@ -624,26 +687,31 @@ export function App() {
       const mapping = runMapRef.current.get(runId)
       if (mapping) {
         // This window owns the run — update the existing pending message
+        const messagesKey = convKey(mapping.folderPath, mapping.conversationId)
         setMessages((prev) => {
-          const list = prev[mapping.folderPath] || []
+          const list = prev[messagesKey] || []
           return {
             ...prev,
-            [mapping.folderPath]: list.map((m) =>
+            [messagesKey]: list.map((m) =>
               m.id === mapping.messageId ? { ...m, activity: text } : m
             ),
           }
         })
       } else if (evFolder && evAgent) {
-        // Another window's run — show a remote typing indicator
+        // Another window's run — show a remote typing indicator on the
+        // viewer's currently-active conversation in that folder.
+        const convId = activeConversationId[evFolder]
+        if (!convId) return
+        const messagesKey = convKey(evFolder, convId)
         const remotePendingId = `remote-${runId}`
         setMessages((prev) => {
-          const list = prev[evFolder] || []
+          const list = prev[messagesKey] || []
           const existing = list.find((m) => m.id === remotePendingId)
           if (existing) {
             // Update existing remote pending bubble
             return {
               ...prev,
-              [evFolder]: list.map((m) =>
+              [messagesKey]: list.map((m) =>
                 m.id === remotePendingId ? { ...m, activity: text } : m
               ),
             }
@@ -651,7 +719,7 @@ export function App() {
           // Create a new remote pending bubble
           return {
             ...prev,
-            [evFolder]: [
+            [messagesKey]: [
               ...list,
               {
                 id: remotePendingId,
@@ -667,7 +735,7 @@ export function App() {
       }
     })
     return unsubscribe
-  }, [])
+  }, [activeConversationId])
 
   // Progressive text streaming: Goose ACP emits agent_message_chunk deltas
   // as the model generates. We append each delta to the pending bubble's
@@ -754,11 +822,12 @@ export function App() {
         console.warn('[UsageReport] ⚠️ no mapping found for runId:', runId, '- runMap keys:', [...runMapRef.current.keys()])
         return
       }
+      const messagesKey = convKey(mapping.folderPath, mapping.conversationId)
       setMessages((prev) => {
-        const list = prev[mapping.folderPath] || []
+        const list = prev[messagesKey] || []
         return {
           ...prev,
-          [mapping.folderPath]: list.map((m) =>
+          [messagesKey]: list.map((m) =>
             m.id === mapping.messageId ? { ...m, usage } : m
           ),
         }
@@ -775,8 +844,12 @@ export function App() {
     return unsubscribe
   }, [])
 
-  const folderMessages = activeFolder ? messages[activeFolder] || [] : []
+  const activeConvId = activeFolder ? activeConversationId[activeFolder] : undefined
+  const activeMessagesKey = activeFolder && activeConvId ? convKey(activeFolder, activeConvId) : null
+  const folderMessages = activeMessagesKey ? messages[activeMessagesKey] || [] : []
   const folderActivity = activeFolder ? activityLog[activeFolder] || [] : []
+  const folderConversations = activeFolder ? conversations[activeFolder] || [] : []
+  const activeConversation = folderConversations.find((c) => c.id === activeConvId) ?? null
 
   // ── Workspace / Folder actions ──
 
@@ -888,6 +961,9 @@ export function App() {
     const hasAttachments = attachments && attachments.length > 0
     console.log('[Send] input:', JSON.stringify(input.trim()), 'hasText:', hasText, 'hasAttachments:', hasAttachments, 'activeFolder:', activeFolder)
     if ((!hasText && !hasAttachments) || !activeFolder) return
+    const conversationId = activeConversationId[activeFolder]
+    if (!conversationId) return
+    const messagesKey = convKey(activeFolder, conversationId)
 
     // Expand text shortcuts before sending — saves tokens & enables Layer 0 routing
     let text = input.trim()
@@ -911,28 +987,41 @@ export function App() {
     }
     setMessages((prev) => ({
       ...prev,
-      [activeFolder]: [
-        ...(prev[activeFolder] || []),
+      [messagesKey]: [
+        ...(prev[messagesKey] || []),
         userMessage,
       ],
     }))
 
-    // Persist the user message immediately to room-log.json so it survives
-    // reloads even if no agent responds (or a hot-reload kills the chain).
+    // Persist the user message immediately to the conversation file so it
+    // survives reloads even if no agent responds (or a hot-reload kills the chain).
     window.api.appendUserMessage({
       folderPath: activeFolder,
+      conversationId,
       message: {
         id: userMessage.id,
         ts,
         text,
         attachments: hasAttachments ? attachments : undefined,
       },
+    }).catch((err) => {
+      console.error('[Send] failed to persist user message', err)
+      showToast({
+        type: 'error',
+        title: t('conversations.persistFailedTitle'),
+        message: t('conversations.persistFailedMessage'),
+        duration: 6000,
+      })
     })
 
     // Add to buffer
-    if (!bufferRef.current || bufferRef.current.folderPath !== activeFolder) {
+    if (
+      !bufferRef.current
+      || bufferRef.current.folderPath !== activeFolder
+      || bufferRef.current.conversationId !== conversationId
+    ) {
       if (bufferRef.current?.timer) clearTimeout(bufferRef.current.timer)
-      bufferRef.current = { folderPath: activeFolder, messages: [], timer: null }
+      bufferRef.current = { folderPath: activeFolder, conversationId, messages: [], timer: null }
     }
     bufferRef.current.messages.push({ text, ts, attachments: hasAttachments ? attachments : undefined })
 
@@ -945,9 +1034,11 @@ export function App() {
     const buf = bufferRef.current
     if (!buf || buf.messages.length === 0) return
     const folderPath = buf.folderPath
+    const conversationId = buf.conversationId
+    const messagesKey = convKey(folderPath, conversationId)
     const bufferedMessages = buf.messages
     bufferRef.current = null
-    console.log('[FlushBuffer] folderPath:', folderPath, 'messages:', bufferedMessages.length, 'texts:', bufferedMessages.map(m => m.text))
+    console.log('[FlushBuffer] folderPath:', folderPath, 'conv:', conversationId, 'messages:', bufferedMessages.length, 'texts:', bufferedMessages.map(m => m.text))
 
     let combinedText =
       bufferedMessages.length === 1
@@ -965,11 +1056,13 @@ export function App() {
     const allMentions = bufferedMessages.flatMap((m) => parseMentions(m.text))
 
     // ── Message Bundling & Interrupt ────────────────────
-    // Only interrupt agents that are actually targeted by the user's message.
-    // If the user @mentions specific agents, only those get interrupted.
-    // If no mentions, defer interrupting until after routing.
+    // Only interrupt agents that are actually targeted by the user's message
+    // AND running in the same conversation. Different conversations have
+    // their own pool keys / locks and run independently.
+    const runPrefix = `${folderPath}::`
+    const runSuffix = `::${conversationId}`
     const runningInFolder = Array.from(activeRunsRef.current.entries())
-      .filter(([key]) => key.startsWith(`${folderPath}::`))
+      .filter(([key]) => key.startsWith(runPrefix) && key.endsWith(runSuffix))
 
     // Helper to interrupt specific agents, show bundle message, and merge prompts
     const interruptAndBundle = async (
@@ -987,6 +1080,7 @@ export function App() {
             resolve,
             messageId: confirmMsgId,
             folderPath,
+            conversationId,
             runningAgents: runningAgentNames,
             bufferedText: combinedText,
             bufferedAttachments: allAttachments,
@@ -995,8 +1089,8 @@ export function App() {
 
           setMessages((prev) => ({
             ...prev,
-            [folderPath]: [
-              ...(prev[folderPath] || []),
+            [messagesKey]: [
+              ...(prev[messagesKey] || []),
               {
                 id: confirmMsgId,
                 agentName: '__system__',
@@ -1032,8 +1126,8 @@ export function App() {
         : `@${firstTarget.agentName}`
       setMessages((prev) => ({
         ...prev,
-        [folderPath]: [
-          ...(prev[folderPath] || []),
+        [messagesKey]: [
+          ...(prev[messagesKey] || []),
           {
             id: bundleMsgId,
             agentName: '__system__',
@@ -1096,8 +1190,8 @@ export function App() {
         const dispatcherMsgId = `d-${userTs}`
         setMessages((prev) => ({
           ...prev,
-          [folderPath]: [
-            ...(prev[folderPath] || []),
+          [messagesKey]: [
+            ...(prev[messagesKey] || []),
             {
               id: dispatcherMsgId,
               agentName: '__dispatcher__',
@@ -1108,11 +1202,11 @@ export function App() {
             },
           ],
         }))
-        const recent = (messages[folderPath] || [])
+        const recent = (messages[messagesKey] || [])
           .filter((m) => m.agentName !== '__dispatcher__' && m.agentName !== '__system__' && !m.pending)
           .slice(-6)
           .map((m) => ({ agentName: m.agentName, text: m.text }))
-        let res: { ok: boolean; leader?: string; collaborators?: string[]; model?: string }
+        let res: { ok: boolean; leader?: string; collaborators?: string[]; model?: 'sonnet' | 'opus' }
         try {
           res = await withTimeout(
             window.api.dispatch({
@@ -1130,7 +1224,7 @@ export function App() {
         } finally {
           setMessages((prev) => ({
             ...prev,
-            [folderPath]: (prev[folderPath] || []).filter((m) => m.id !== dispatcherMsgId),
+            [messagesKey]: (prev[messagesKey] || []).filter((m) => m.id !== dispatcherMsgId),
           }))
         }
         if (res.ok) {
@@ -1191,6 +1285,11 @@ export function App() {
   ) => {
     if (!activeFolder) return
     const folderPathAtStart = activeFolder
+    // Capture the conversation at run-start so the response always lands in
+    // the conversation it was issued from, even if the user switches mid-run.
+    const conversationIdAtStart = activeConversationId[folderPathAtStart]
+    if (!conversationIdAtStart) return
+    const messagesKey = convKey(folderPathAtStart, conversationIdAtStart)
     // Snapshot the current octos list so chain logic still works even if the
     // user switches to a different folder/workspace mid-run.
     const octosSnapshot = [...octos]
@@ -1200,6 +1299,7 @@ export function App() {
     if (depth === 0) {
       activeChainRef.current.set(chainKey, {
         folderPath: folderPathAtStart,
+        conversationId: conversationIdAtStart,
         userTs,
         originalPrompt: prompt,
         agents: new Set([target.name]),
@@ -1213,17 +1313,23 @@ export function App() {
 
     const pendingId = `p-${userTs}-${target.name}-${depth}-${Date.now()}`
     const runId = `run-${userTs}-${target.name}-${depth}-${Math.random().toString(36).slice(2, 8)}`
-    runMapRef.current.set(runId, { folderPath: folderPathAtStart, messageId: pendingId })
+    runMapRef.current.set(runId, {
+      folderPath: folderPathAtStart,
+      conversationId: conversationIdAtStart,
+      messageId: pendingId,
+    })
 
     // Show a placeholder bubble immediately. If the agent is busy we'll show
     // "Waiting for <name>…" until the previous run releases the lock.
-    const lockKey = `${folderPathAtStart}::${target.name.toLowerCase()}`
+    // Lock + active-runs key now includes the conversation id so two
+    // conversations of the same agent don't share a lock.
+    const lockKey = `${folderPathAtStart}::${target.name.toLowerCase()}::${conversationIdAtStart}`
     const previousLock = agentLocksRef.current.get(lockKey)
     const willQueue = !!previousLock
     setMessages((prev) => ({
       ...prev,
-      [folderPathAtStart]: [
-        ...(prev[folderPathAtStart] || []),
+      [messagesKey]: [
+        ...(prev[messagesKey] || []),
         {
           id: pendingId,
           agentName: target.name,
@@ -1256,10 +1362,10 @@ export function App() {
       }
       // Update the activity line now that we're starting.
       setMessages((prev) => {
-        const list = prev[folderPathAtStart] || []
+        const list = prev[messagesKey] || []
         return {
           ...prev,
-          [folderPathAtStart]: list.map((m) =>
+          [messagesKey]: list.map((m) =>
             m.id === pendingId ? { ...m, activity: t('app.thinking') } : m
           ),
         }
@@ -1298,9 +1404,10 @@ export function App() {
     console.log('[InvokeAgent] 🚀 target:', target.name, 'depth:', depth, 'prompt:', prompt.slice(0, 100), 'model:', model, 'octoPath:', target.path)
     let res: { ok: boolean; output: string; error?: string; usage?: import('./types').TokenUsage }
     try {
-      res = await window.api.sendMessage({
+      const apiRes = await window.api.sendMessage({
         folderPath: folderPathAtStart,
         octoPath: target.path,
+        conversationId: conversationIdAtStart,
         prompt,
         userTs,
         runId,
@@ -1312,6 +1419,9 @@ export function App() {
         textPaths: textPaths.length > 0 ? textPaths : undefined,
         model,
       })
+      res = apiRes.ok
+        ? { ok: true, output: apiRes.output, usage: apiRes.usage }
+        : { ok: false, output: '', error: apiRes.error }
     } catch (err) {
       console.error('[InvokeAgent] ❌ sendMessage error for', target.name, ':', err)
       res = { ok: false, output: '', error: String(err) }
@@ -1331,7 +1441,7 @@ export function App() {
     if (res.ok && res.output === '[interrupted]') {
       setMessages((prev) => ({
         ...prev,
-        [folderPathAtStart]: (prev[folderPathAtStart] || []).filter(
+        [messagesKey]: (prev[messagesKey] || []).filter(
           (m) => m.id !== pendingId
         ),
       }))
@@ -1348,7 +1458,7 @@ export function App() {
     const resUsage = res.ok ? (res as any).usage : undefined
     console.log('[InvokeAgent] 🏷️ setting usage on message:', pendingId, 'resUsage:', JSON.stringify(resUsage), 'res.ok:', res.ok)
     setMessages((prev) => {
-      const list = prev[folderPathAtStart] || []
+      const list = prev[messagesKey] || []
       const updated = list.map((m) =>
         m.id === pendingId
           ? {
@@ -1366,7 +1476,7 @@ export function App() {
       console.log('[InvokeAgent] 🏷️ after map, message usage:', target_msg?.id, JSON.stringify(target_msg?.usage))
       return {
         ...prev,
-        [folderPathAtStart]: updated,
+        [messagesKey]: updated,
       }
     })
 
@@ -1391,10 +1501,11 @@ export function App() {
       const elapsed = Math.round((Date.now() - c.startTs) / 1000)
       const agentList = Array.from(c.agents).map((n) => `@${n}`).join(', ')
       const reportMsgId = `chain-report-${Date.now()}`
+      const reportKey = convKey(c.folderPath, c.conversationId)
       setMessages((prev) => ({
         ...prev,
-        [c.folderPath]: [
-          ...(prev[c.folderPath] || []),
+        [reportKey]: [
+          ...(prev[reportKey] || []),
           {
             id: reportMsgId,
             agentName: '__system__',
@@ -1444,10 +1555,10 @@ export function App() {
     // both the speaker's reply and the proposed target before the chain
     // continues. (Future: per-agent "auto-delegate" flag to skip this.)
     setMessages((prev) => {
-      const list = prev[folderPathAtStart] || []
+      const list = prev[messagesKey] || []
       return {
         ...prev,
-        [folderPathAtStart]: list.map((m) =>
+        [messagesKey]: list.map((m) =>
           m.id === pendingId
             ? {
                 ...m,
@@ -1459,6 +1570,7 @@ export function App() {
     })
     pendingHandoffsRef.current.set(pendingId, {
       folderPath: folderPathAtStart,
+      conversationId: conversationIdAtStart,
       speakerName: target.name,
       speakerOutput: res.output,
       nextTargetPaths: nextTargets.map((n) => n.octo.path),
@@ -1476,6 +1588,7 @@ export function App() {
       string,
       {
         folderPath: string
+        conversationId: string
         speakerName: string
         speakerOutput: string
         nextTargetPaths: string[]
@@ -1502,6 +1615,7 @@ export function App() {
       if (ctx.folderPath !== folderPath) continue
       entries[id] = {
         folderPath: ctx.folderPath,
+        conversationId: ctx.conversationId,
         speakerName: ctx.speakerName,
         speakerOutput: ctx.speakerOutput,
         nextTargetPaths: ctx.nextTargetPaths,
@@ -1521,13 +1635,14 @@ export function App() {
     if (!ctx) return
     pendingHandoffsRef.current.delete(messageId)
     persistPendingState(ctx.folderPath)
+    const messagesKey = convKey(ctx.folderPath, ctx.conversationId)
 
     // Mark the message as approved so the UI hides the buttons.
     setMessages((prev) => {
-      const list = prev[ctx.folderPath] || []
+      const list = prev[messagesKey] || []
       return {
         ...prev,
-        [ctx.folderPath]: list.map((m) =>
+        [messagesKey]: list.map((m) =>
           m.id === messageId && m.handoff
             ? { ...m, handoff: { ...m.handoff, approved: true } }
             : m
@@ -1559,11 +1674,12 @@ export function App() {
     if (!ctx) return
     pendingHandoffsRef.current.delete(messageId)
     persistPendingState(ctx.folderPath)
+    const messagesKey = convKey(ctx.folderPath, ctx.conversationId)
     setMessages((prev) => {
-      const list = prev[ctx.folderPath] || []
+      const list = prev[messagesKey] || []
       return {
         ...prev,
-        [ctx.folderPath]: list.map((m) =>
+        [messagesKey]: list.map((m) =>
           m.id === messageId && m.handoff
             ? { ...m, handoff: { ...m.handoff, approved: false } }
             : m
@@ -1576,11 +1692,12 @@ export function App() {
     const ctx = pendingInterruptRef.current.get(messageId)
     if (!ctx) return
     pendingInterruptRef.current.delete(messageId)
+    const messagesKey = convKey(ctx.folderPath, ctx.conversationId)
     setMessages((prev) => {
-      const list = prev[ctx.folderPath] || []
+      const list = prev[messagesKey] || []
       return {
         ...prev,
-        [ctx.folderPath]: list.map((m) =>
+        [messagesKey]: list.map((m) =>
           m.id === messageId && m.interruptConfirm
             ? { ...m, interruptConfirm: { ...m.interruptConfirm, confirmed: true } }
             : m
@@ -1594,11 +1711,12 @@ export function App() {
     const ctx = pendingInterruptRef.current.get(messageId)
     if (!ctx) return
     pendingInterruptRef.current.delete(messageId)
+    const messagesKey = convKey(ctx.folderPath, ctx.conversationId)
     setMessages((prev) => {
-      const list = prev[ctx.folderPath] || []
+      const list = prev[messagesKey] || []
       return {
         ...prev,
-        [ctx.folderPath]: list.map((m) =>
+        [messagesKey]: list.map((m) =>
           m.id === messageId && m.interruptConfirm
             ? { ...m, interruptConfirm: { ...m.interruptConfirm, confirmed: false } }
             : m
@@ -1610,7 +1728,10 @@ export function App() {
 
   const grantPermission = async (messageId: string) => {
     if (!activeFolder) return
-    const folderMsgs = messages[activeFolder] || []
+    const conversationId = activeConversationId[activeFolder]
+    if (!conversationId) return
+    const messagesKey = convKey(activeFolder, conversationId)
+    const folderMsgs = messages[messagesKey] || []
     const msg = folderMsgs.find((m) => m.id === messageId)
     if (!msg?.permissionRequest?.agentPath) return
 
@@ -1624,10 +1745,10 @@ export function App() {
 
     // Mark as granted in UI
     setMessages((prev) => {
-      const list = prev[activeFolder] || []
+      const list = prev[messagesKey] || []
       return {
         ...prev,
-        [activeFolder]: list.map((m) =>
+        [messagesKey]: list.map((m) =>
           m.id === messageId && m.permissionRequest
             ? { ...m, permissionRequest: { ...m.permissionRequest, granted: true } }
             : m
@@ -1663,17 +1784,169 @@ export function App() {
 
   const dismissPermission = (messageId: string) => {
     if (!activeFolder) return
+    const conversationId = activeConversationId[activeFolder]
+    if (!conversationId) return
+    const messagesKey = convKey(activeFolder, conversationId)
     setMessages((prev) => {
-      const list = prev[activeFolder] || []
+      const list = prev[messagesKey] || []
       return {
         ...prev,
-        [activeFolder]: list.map((m) =>
+        [messagesKey]: list.map((m) =>
           m.id === messageId && m.permissionRequest
             ? { ...m, permissionRequest: { ...m.permissionRequest, granted: false } }
             : m
         ),
       }
     })
+  }
+
+  // ── Conversation lifecycle ──
+
+  const handleNewConversation = async (folderPath: string) => {
+    let conv: Conversation
+    try {
+      conv = await window.api.createConversation({ folderPath })
+    } catch (err) {
+      console.error('[Conversations] create failed', err)
+      showToast({
+        type: 'error',
+        title: t('conversations.createFailedTitle'),
+        message:
+          typeof err === 'string'
+            ? err
+            : (err as Error)?.message ?? t('conversations.createFailedMessage'),
+      })
+      return
+    }
+    setConversations((prev) => ({
+      ...prev,
+      [folderPath]: sortConversations([conv, ...(prev[folderPath] || [])]),
+    }))
+    setActiveConversationId((prev) => ({ ...prev, [folderPath]: conv.id }))
+    const messagesKey = convKey(folderPath, conv.id)
+    setMessages((prev) => ({ ...prev, [messagesKey]: [] }))
+    setHasMoreMessages((prev) => ({ ...prev, [messagesKey]: false }))
+    if (activeFolder !== folderPath) {
+      setActiveFolder(folderPath)
+    }
+    setCenterTab('chat')
+  }
+
+  const handleSwitchConversation = async (folderPath: string, conversationId: string) => {
+    const previousConvId = activeConversationId[folderPath]
+    setActiveConversationId((prev) => ({ ...prev, [folderPath]: conversationId }))
+    const messagesKey = convKey(folderPath, conversationId)
+    if (activeFolder !== folderPath) {
+      setActiveFolder(folderPath)
+    }
+    setCenterTab('chat')
+    if (messages[messagesKey]) return // already loaded
+    try {
+      const { messages: history, hasMore } = await window.api.loadHistoryPaged({
+        folderPath,
+        conversationId,
+        limit: PAGE_SIZE,
+      })
+      setHasMoreMessages((prev) => ({ ...prev, [messagesKey]: hasMore }))
+      setMessages((prev) => ({
+        ...prev,
+        [messagesKey]: history.map((m) => ({ ...m, text: sanitizeDisplayText(m.text ?? '') })),
+      }))
+    } catch (err) {
+      console.error('[Conversations] switch failed', err)
+      // Revert active id so the UI doesn't get stuck on an empty
+      // "loaded" conversation that actually failed to load.
+      setActiveConversationId((prev) => {
+        if (previousConvId) {
+          return { ...prev, [folderPath]: previousConvId }
+        }
+        const { [folderPath]: _drop, ...rest } = prev
+        return rest
+      })
+      showToast({
+        type: 'error',
+        title: t('conversations.switchFailedTitle'),
+        message:
+          typeof err === 'string'
+            ? err
+            : (err as Error)?.message ?? t('conversations.switchFailedMessage'),
+      })
+    }
+  }
+
+  const handleRenameConversation = async (
+    folderPath: string,
+    conversationId: string,
+    title: string,
+  ) => {
+    try {
+      const updated = await window.api.renameConversation({ folderPath, conversationId, title })
+      setConversations((prev) => ({
+        ...prev,
+        [folderPath]: sortConversations(
+          (prev[folderPath] || []).map((c) => (c.id === conversationId ? updated : c)),
+        ),
+      }))
+    } catch (err) {
+      console.error('[Conversations] rename failed', err)
+      showToast({
+        type: 'error',
+        title: t('conversations.renameFailedTitle'),
+        message:
+          typeof err === 'string'
+            ? err
+            : (err as Error)?.message ?? t('conversations.renameFailedMessage'),
+      })
+    }
+  }
+
+  const handleDeleteConversation = async (folderPath: string, conversationId: string) => {
+    const conv = (conversations[folderPath] || []).find((c) => c.id === conversationId)
+    if (!conv) return
+    if (!confirm(t('conversations.deleteConfirm', { title: conv.title }))) return
+
+    try {
+      await window.api.deleteConversation({ folderPath, conversationId })
+    } catch (err) {
+      console.error('[Conversations] delete failed', err)
+      showToast({
+        type: 'error',
+        title: t('conversations.deleteFailedTitle'),
+        message:
+          typeof err === 'string'
+            ? err
+            : (err as Error)?.message ?? t('conversations.deleteFailedMessage'),
+      })
+      // Re-fetch list to recover from "deleted in another window" races.
+      try {
+        const refreshed = sortConversations(await window.api.listConversations(folderPath))
+        setConversations((prev) => ({ ...prev, [folderPath]: refreshed }))
+      } catch {
+        /* nothing more we can do */
+      }
+      return
+    }
+    // Drop local state for this conversation
+    const dropKey = convKey(folderPath, conversationId)
+    setMessages((prev) => {
+      const next = { ...prev }
+      delete next[dropKey]
+      return next
+    })
+    setHasMoreMessages((prev) => {
+      const next = { ...prev }
+      delete next[dropKey]
+      return next
+    })
+    // Refresh list (backend ensures at least one remains)
+    const refreshed = sortConversations(await window.api.listConversations(folderPath))
+    setConversations((prev) => ({ ...prev, [folderPath]: refreshed }))
+    if (activeConversationId[folderPath] === conversationId) {
+      const next = refreshed[0]
+      if (next) {
+        await handleSwitchConversation(folderPath, next.id)
+      }
+    }
   }
 
   // ── Render ──
@@ -1703,16 +1976,26 @@ export function App() {
           removeFolder={removeFolder}
           pickFolder={pickFolder}
           setShowCreateWorkspace={setShowCreateWorkspace}
+          conversations={conversations}
+          activeConversationId={activeConversationId}
+          onNewConversation={handleNewConversation}
+          onSwitchConversation={handleSwitchConversation}
+          onRequestRenameConversation={(folderPath, conversation) =>
+            setRenamingConversation({ folderPath, conversation })
+          }
+          onDeleteConversation={handleDeleteConversation}
         />
       )}
 
-      <div className={`center-panel ${centerTab === 'activity' || centerTab === 'timeline' || centerTab === 'settings' || centerTab === 'tasks' ? 'center-panel--wide' : ''}`}>
+      <div className={`center-panel ${centerTab === 'activity' || centerTab === 'settings' || centerTab === 'tasks' ? 'center-panel--wide' : ''}`}>
         {centerTab === 'chat' ? (
           <ChatPanel
             activeFolder={activeFolder}
             activeWorkspace={activeWorkspace}
             octos={octos}
             folderMessages={folderMessages}
+            currentConversationTitle={activeConversation?.title ?? null}
+            onNewConversation={() => activeFolder && handleNewConversation(activeFolder)}
             input={input}
             setInput={setInput}
             mentionOpen={mentionOpen}
@@ -1726,7 +2009,7 @@ export function App() {
             onCancelInterrupt={cancelInterrupt}
             onGrantPermission={grantPermission}
             onDismissPermission={dismissPermission}
-            hasMoreMessages={!!hasMoreMessages[activeFolder || '']}
+            hasMoreMessages={!!(activeMessagesKey && hasMoreMessages[activeMessagesKey])}
             loadingMore={loadingMore}
             onLoadMore={loadMoreMessages}
             hasPendingAgents={folderMessages.some((m) => m.pending)}
@@ -1813,6 +2096,18 @@ export function App() {
           onCreated={() => {
             setShowCreateAgent(false)
             if (activeFolder) window.api.listOctos(activeFolder).then(setOctos)
+          }}
+        />
+      )}
+
+      {renamingConversation && (
+        <RenameConversationModal
+          currentTitle={renamingConversation.conversation.title}
+          onClose={() => setRenamingConversation(null)}
+          onRenamed={async (title) => {
+            const { folderPath, conversation } = renamingConversation
+            await handleRenameConversation(folderPath, conversation.id, title)
+            setRenamingConversation(null)
           }}
         />
       )}

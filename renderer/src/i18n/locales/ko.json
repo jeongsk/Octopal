@@ -209,6 +209,27 @@
     "collapseAgents": "에이전트 패널 숨기기",
     "expandAgents": "에이전트 패널 보기"
   },
+  "conversations": {
+    "default": "기본",
+    "untitled": "새 대화",
+    "newConversation": "새 대화",
+    "newConversationTitle": "새 대화 시작",
+    "rename": "이름 바꾸기",
+    "delete": "삭제",
+    "deleteConfirm": "대화 \"{{title}}\"을(를) 삭제할까요? 되돌릴 수 없습니다.",
+    "switchHint": "대화 열기",
+    "addNew": "+ 새 대화",
+    "createFailedTitle": "대화를 만들지 못했습니다",
+    "createFailedMessage": "새 대화를 저장하지 못했어요. 다시 시도해 주세요.",
+    "switchFailedTitle": "대화를 열지 못했습니다",
+    "switchFailedMessage": "대화 기록을 불러오지 못했어요. 다시 시도해 주세요.",
+    "renameFailedTitle": "이름을 변경하지 못했습니다",
+    "renameFailedMessage": "새 제목을 저장하지 못했어요. 다시 시도해 주세요.",
+    "deleteFailedTitle": "대화를 삭제하지 못했습니다",
+    "deleteFailedMessage": "대화 삭제에 실패했어요. 다시 시도해 주세요.",
+    "persistFailedTitle": "메시지가 저장되지 않았습니다",
+    "persistFailedMessage": "메시지가 화면에는 표시되지만 디스크에 저장하지 못했어요. 새로고침 시 사라질 수 있습니다."
+  },
   "agents": {
     "title": "에이전트",
     "addAgent": "에이전트 추가",
@@ -263,6 +284,11 @@
       "hint": "워크스페이스를 만들어 시작하세요. 업무, 사이드 프로젝트, 실험 등 다양한 맥락에 맞는 워크스페이스를 여러 개 만들 수 있습니다.",
       "nameLabel": "워크스페이스 이름",
       "namePlaceholder": "개인"
+    },
+    "renameConversation": {
+      "title": "대화 이름 바꾸기",
+      "nameLabel": "제목",
+      "namePlaceholder": "예: 버그 수정 #42"
     },
     "openFolder": {
       "desc": "프로젝트 폴더를 열어 시작하세요.",

@@ -207,6 +207,10 @@ pub fn run() {
             commands::folder::append_user_message,
             commands::folder::read_pending_state,
             commands::folder::write_pending_state,
+            commands::folder::list_conversations,
+            commands::folder::create_conversation,
+            commands::folder::rename_conversation,
+            commands::folder::delete_conversation,
             // Octo (Agent CRUD)
             commands::octo::create_octo,
             commands::octo::update_octo,

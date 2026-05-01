@@ -80,6 +80,7 @@ Octopal은 클로드 코드 위에서 작동하는 AI 에이전트 팀 워크스
 
 ### 채팅
 - 멀티 에이전트 그룹 채팅 — 대화를 중재하는 히든 에이전트가 당신의 질문에 답변할 수 있는 분야별 전문가 에이전트를 자동 호출합니다.
+- 폴더별 다중 대화 — 각 대화는 독립된 Claude CLI 세션과 메시지 히스토리를 가지며, 사이드바에서 이름 변경 / 삭제 가능
 - `@멘션` 라우팅, `@all` 전체 호출
 - 실시간 스트리밍 응답 + Markdown 렌더링 (GFM, 코드 하이라이팅)
 - 이미지/텍스트 파일 첨부 (드래그 앤 드롭, 붙여넣기)
@@ -274,7 +275,9 @@ Octopal/
 |------|------|
 | 상태 (Dev) | `~/.octopal-dev/state.json` |
 | 상태 (Prod) | `~/.octopal/state.json` |
-| 대화 이력 | `~/.octopal/room-log.json` |
+| 대화 (인덱스) | `<folder>/.octopal/conversations.json` |
+| 대화 (메시지) | `<folder>/.octopal/conversations/<id>.json` |
+| 대화 이력 (레거시) | `~/.octopal/room-log.json` |
 | 첨부 파일 | `~/.octopal/uploads/` |
 | 위키 | `~/.octopal/wiki/{workspaceId}/` |
 | 설정 | `~/.octopal/settings.json` |

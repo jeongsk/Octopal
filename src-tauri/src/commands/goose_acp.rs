@@ -1558,7 +1558,7 @@ pub async fn run_agent_turn(
         .join(".octopal")
         .join("room-history.json");
     std::fs::create_dir_all(room_history_path.parent().unwrap()).ok();
-    crate::commands::folder::maybe_rotate_room_history(&room_history_path);
+    crate::commands::folder::maybe_rotate_history(&room_history_path);
     let mut room_history: Vec<Value> = if room_history_path.exists() {
         std::fs::read_to_string(&room_history_path)
             .ok()

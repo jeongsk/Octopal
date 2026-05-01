@@ -40,7 +40,16 @@ assets/          Logo, fonts, icons
 
 - **3-panel layout**: `LeftSidebar.tsx` / center tabs (`ChatPanel`, `WikiPanel`, `ActivityPanel`, `SettingsPanel`, `TaskBoard`) / `RightSidebar.tsx`.
 - **State lives in `App.tsx`** via plain `useState`. **No Redux/Zustand.** Tauri IPC is called directly via `@tauri-apps/api`.
-- **Agent locks**: `App.tsx` keeps a per-agent FIFO queue (`agentLocksRef`) to serialize Claude CLI invocations for the same agent.
+- **Agent locks**: `App.tsx` keeps a per-agent FIFO queue (`agentLocksRef`) to serialize Claude CLI invocations for the same agent in the same conversation.
+
+### Conversations
+
+Each folder hosts N named conversations.
+
+- **On disk**: `<folder>/.octopal/conversations.json` (index) + `<folder>/.octopal/conversations/<id>.json` (per-conversation messages, same `HistoryMessage` schema as the legacy file).
+- **Renderer keying**: `messages` is keyed by `${folderPath}::${conversationId}` (see `convKey()` in `renderer/src/components/Conversations/conversation-helpers.ts`). `agentLocksRef` and `activeRunsRef` extend that to `${folderPath}::${agentName}::${conversationId}` so two conversations of the same agent don't share a lock.
+- **Process pool**: keyed by `${folder}::${agent}::${conversationId}` — every conversation has its own long-lived Claude CLI session (a "fresh chat" really means a fresh agent context). The dispatcher uses a single global key (`__dispatcher__`), shared across folders and conversations.
+- **Migration**: a `.octopal/.migrated_v1` marker indicates the legacy `room-history.json` has been folded into a "Default" conversation. The original file is left in place as a read-only backup.
 
 ## Backend architecture
 

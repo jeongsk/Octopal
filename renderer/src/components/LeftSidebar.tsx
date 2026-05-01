@@ -1,7 +1,8 @@
-import { useRef, useEffect } from 'react'
+import { useRef, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { basename } from '../utils'
-import { Plus, FolderOpen, ChevronDown, X, BookOpen, Activity, Settings, LayoutGrid } from 'lucide-react'
+import { Plus, FolderOpen, ChevronDown, ChevronRight, X, BookOpen, Activity, Settings, LayoutGrid, MessageSquare } from 'lucide-react'
+import type { Conversation } from '../types'
 
 interface LeftSidebarProps {
   activeWorkspace: Workspace | null
@@ -18,6 +19,12 @@ interface LeftSidebarProps {
   removeFolder: (p: string) => void
   pickFolder: () => void
   setShowCreateWorkspace: (v: boolean) => void
+  conversations: Record<string, Conversation[]>
+  activeConversationId: Record<string, string>
+  onNewConversation: (folderPath: string) => void
+  onSwitchConversation: (folderPath: string, conversationId: string) => void
+  onRequestRenameConversation: (folderPath: string, conversation: Conversation) => void
+  onDeleteConversation: (folderPath: string, conversationId: string) => void
 }
 
 export function LeftSidebar({
@@ -35,10 +42,41 @@ export function LeftSidebar({
   removeFolder,
   pickFolder,
   setShowCreateWorkspace,
+  conversations,
+  activeConversationId,
+  onNewConversation,
+  onSwitchConversation,
+  onRequestRenameConversation,
+  onDeleteConversation,
 }: LeftSidebarProps) {
   const { t } = useTranslation()
   const folders = activeWorkspace?.folders || []
   const menuRef = useRef<HTMLDivElement>(null)
+  // Folders auto-expand when active. Users can collapse/expand each folder
+  // independently — preference persists for the session via local state.
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(
+    () => new Set(activeFolder ? [activeFolder] : []),
+  )
+
+  useEffect(() => {
+    if (activeFolder) {
+      setExpandedFolders((prev) => {
+        if (prev.has(activeFolder)) return prev
+        const next = new Set(prev)
+        next.add(activeFolder)
+        return next
+      })
+    }
+  }, [activeFolder])
+
+  const toggleFolderExpanded = (folder: string) => {
+    setExpandedFolders((prev) => {
+      const next = new Set(prev)
+      if (next.has(folder)) next.delete(folder)
+      else next.add(folder)
+      return next
+    })
+  }
 
   useEffect(() => {
     if (!workspaceMenuOpen) return
@@ -165,21 +203,82 @@ export function LeftSidebar({
           <Plus size={14} />
           <span>{t('sidebar.addFolder')}</span>
         </button>
-        {folders.map((f) => (
-          <button
-            key={f}
-            className={`project-item ${f === activeFolder ? 'active' : ''}`}
-            onClick={() => { setActiveFolder(f); setCenterTab('chat') }}
-            onContextMenu={(e) => {
-              e.preventDefault()
-              if (confirm(t('sidebar.removeFolderConfirm', { name: basename(f) }))) removeFolder(f)
-            }}
-            title={f}
-          >
-            <span className="project-icon"><FolderOpen size={16} /></span>
-            <span className="project-name">{basename(f)}</span>
-          </button>
-        ))}
+        {folders.map((f) => {
+          const isActive = f === activeFolder
+          const isExpanded = expandedFolders.has(f)
+          const folderConvs = conversations[f] || []
+          const activeConvId = activeConversationId[f]
+          return (
+            <div key={f} className="project-group">
+              <button
+                className={`project-item ${isActive ? 'active' : ''}`}
+                onClick={() => {
+                  setActiveFolder(f)
+                  setCenterTab('chat')
+                  setExpandedFolders((prev) => {
+                    const next = new Set(prev)
+                    next.add(f)
+                    return next
+                  })
+                }}
+                onContextMenu={(e) => {
+                  e.preventDefault()
+                  if (confirm(t('sidebar.removeFolderConfirm', { name: basename(f) }))) removeFolder(f)
+                }}
+                title={f}
+              >
+                <span
+                  className="project-caret"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    toggleFolderExpanded(f)
+                  }}
+                  role="button"
+                  aria-label={isExpanded ? 'Collapse' : 'Expand'}
+                >
+                  {isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                </span>
+                <span className="project-icon"><FolderOpen size={16} /></span>
+                <span className="project-name">{basename(f)}</span>
+              </button>
+              {isExpanded && (
+                <div className="conversation-list">
+                  {folderConvs.map((c) => (
+                    <button
+                      key={c.id}
+                      className={`conversation-item ${c.id === activeConvId && isActive ? 'active' : ''}`}
+                      onClick={() => onSwitchConversation(f, c.id)}
+                      onContextMenu={(e) => {
+                        e.preventDefault()
+                        // Simple context menu via two confirms — matches the
+                        // project-list right-click affordance.
+                        const action = window.prompt(
+                          `${t('conversations.rename')} / ${t('conversations.delete')}? (r/d)`,
+                          'r',
+                        )
+                        if (action === 'r') {
+                          onRequestRenameConversation(f, c)
+                        } else if (action === 'd') {
+                          onDeleteConversation(f, c.id)
+                        }
+                      }}
+                      title={c.title}
+                    >
+                      <span className="conversation-icon"><MessageSquare size={12} /></span>
+                      <span className="conversation-name">{c.title}</span>
+                    </button>
+                  ))}
+                  <button
+                    className="conversation-add"
+                    onClick={() => onNewConversation(f)}
+                  >
+                    {t('conversations.addNew')}
+                  </button>
+                </div>
+              )}
+            </div>
+          )
+        })}
       </div>
       <div className="sidebar-footer">
         <button

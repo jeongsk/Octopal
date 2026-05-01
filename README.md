@@ -80,6 +80,7 @@ No complex setup, no cloud — just your computer and your AI agents.
 
 ### Chat
 - Multi-agent group chat — A hidden mediator agent automatically summons domain-expert agents that can answer your questions.
+- Multiple named conversations per folder — each has its own Claude CLI session and message history; rename or delete from the sidebar
 - `@mention` routing, `@all` broadcast
 - Real-time streaming responses + Markdown rendering (GFM, syntax highlighting)
 - Image/text file attachments (drag & drop, paste)
@@ -279,7 +280,9 @@ Octopal/
 |------|------|
 | State (Dev) | `~/.octopal-dev/state.json` |
 | State (Prod) | `~/.octopal/state.json` |
-| Chat history | `~/.octopal/room-log.json` |
+| Conversations (index) | `<folder>/.octopal/conversations.json` |
+| Conversations (messages) | `<folder>/.octopal/conversations/<id>.json` |
+| Chat history (legacy) | `~/.octopal/room-log.json` |
 | Attachments | `~/.octopal/uploads/` |
 | Wiki | `~/.octopal/wiki/{workspaceId}/` |
 | Settings | `~/.octopal/settings.json` |

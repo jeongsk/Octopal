@@ -4,7 +4,7 @@ import { basename } from '../utils'
 import { MentionPopup } from './MentionPopup'
 import { AgentAvatar } from './AgentAvatar'
 import type { Attachment, Message, TokenUsage } from '../types'
-import { Paperclip, Download, FileText, X, Send, Square, ImageOff, ArrowDown, PanelRightOpen, PanelRightClose, Code, ChevronDown, ChevronRight, Zap } from 'lucide-react'
+import { Paperclip, Download, FileText, X, Send, Square, ImageOff, ArrowDown, PanelRightOpen, PanelRightClose, Code, ChevronDown, ChevronRight, Zap, Plus } from 'lucide-react'
 import { BorderBeam } from 'border-beam'
 import { MarkdownRenderer } from './MarkdownRenderer'
 import { convertFileSrc } from '@tauri-apps/api/core'
@@ -311,6 +311,10 @@ interface ChatPanelProps {
   activeWorkspace: Workspace | null
   octos: OctoFile[]
   folderMessages: Message[]
+  /** Title of the active conversation, shown under the folder name in the chat header. */
+  currentConversationTitle: string | null
+  /** Invoked when the user clicks the "+" button in the chat header. */
+  onNewConversation: () => void
   input: string
   setInput: (v: string) => void
   mentionOpen: boolean
@@ -341,6 +345,8 @@ export function ChatPanel({
   activeWorkspace,
   octos,
   folderMessages,
+  currentConversationTitle,
+  onNewConversation,
   input,
   setInput,
   mentionOpen,
@@ -401,14 +407,14 @@ export function ChatPanel({
   // folder). The scan is cheap (small filesystem walk), so refreshing on the
   // octosChanged event covers nearly all add/remove cases without polling.
   useEffect(() => {
-    if (!activeFolder || !window.api.listSkills) {
+    const listSkills = window.api.listSkills
+    if (!activeFolder || !listSkills) {
       setSkills([])
       return
     }
     let cancelled = false
     const refresh = () => {
-      window.api
-        .listSkills(activeFolder)
+      listSkills(activeFolder)
         .then((list) => {
           if (!cancelled) setSkills(list)
         })
@@ -954,14 +960,30 @@ export function ChatPanel({
           <span className="room-title">
             {activeFolder ? basename(activeFolder) : t('chat.noFolder')}
           </span>
-          <span className="room-meta">
-            {activeFolder
-              ? t('chat.agentCount', { count: octos.length })
-              : activeWorkspace
-              ? t('chat.openFolderToStart')
-              : t('chat.createWorkspaceToStart')}
-          </span>
+          {activeFolder && currentConversationTitle ? (
+            <span className="room-conversation">
+              {currentConversationTitle}
+            </span>
+          ) : (
+            <span className="room-meta">
+              {activeFolder
+                ? t('chat.agentCount', { count: octos.length })
+                : activeWorkspace
+                ? t('chat.openFolderToStart')
+                : t('chat.createWorkspaceToStart')}
+            </span>
+          )}
         </div>
+        {activeFolder && (
+          <button
+            className="chat-toggle-btn"
+            style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+            onClick={onNewConversation}
+            title={t('conversations.newConversationTitle')}
+          >
+            <Plus size={16} strokeWidth={1} />
+          </button>
+        )}
         <button
           className="sidebar-toggle-btn chat-toggle-btn"
           onClick={onToggleRightSidebar}

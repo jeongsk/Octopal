@@ -11,7 +11,6 @@ function makeTask(overrides: Partial<Task> & { status: TaskStatus }): Task {
   return {
     id: `task-${Math.random().toString(36).slice(2)}`,
     title: 'Test task',
-    status: overrides.status,
     priority: 'medium',
     autoAssigned: false,
     createdAt: Date.now(),

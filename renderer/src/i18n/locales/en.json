@@ -209,6 +209,27 @@
     "collapseAgents": "Hide agents panel",
     "expandAgents": "Show agents panel"
   },
+  "conversations": {
+    "default": "Default",
+    "untitled": "New conversation",
+    "newConversation": "New conversation",
+    "newConversationTitle": "Start a new conversation",
+    "rename": "Rename",
+    "delete": "Delete",
+    "deleteConfirm": "Delete conversation \"{{title}}\"? This cannot be undone.",
+    "switchHint": "Click to open conversation",
+    "addNew": "+ New conversation",
+    "createFailedTitle": "Could not create conversation",
+    "createFailedMessage": "Saving the new conversation failed. Please try again.",
+    "switchFailedTitle": "Could not open conversation",
+    "switchFailedMessage": "Loading the conversation history failed. Please try again.",
+    "renameFailedTitle": "Could not rename conversation",
+    "renameFailedMessage": "Saving the new title failed. Please try again.",
+    "deleteFailedTitle": "Could not delete conversation",
+    "deleteFailedMessage": "Removing the conversation failed. Please try again.",
+    "persistFailedTitle": "Message not saved",
+    "persistFailedMessage": "Your message is shown locally but could not be written to disk. It may be lost on reload."
+  },
   "agents": {
     "title": "Agents",
     "addAgent": "Add agent",
@@ -263,6 +284,11 @@
       "hint": "Start by creating a workspace. You can have multiple workspaces for different contexts — work, side projects, experiments.",
       "nameLabel": "Workspace name",
       "namePlaceholder": "Personal"
+    },
+    "renameConversation": {
+      "title": "Rename conversation",
+      "nameLabel": "Title",
+      "namePlaceholder": "e.g. Bug fix #42"
     },
     "openFolder": {
       "desc": "Open a project folder to get started.",
