@@ -1,0 +1,19 @@
+{
+  "name": "custom_nvidia",
+  "engine": "openai",
+  "display_name": "Nvidia NIM",
+  "description": "NVIDIA NIM hosted models (OpenAI-compatible)",
+  "api_key_env": "CUSTOM_NVIDIA_API_KEY",
+  "base_url": "https://integrate.api.nvidia.com/v1",
+  "models": [
+    { "name": "deepseek-ai/deepseek-v4-pro", "context_limit": 128000, "input_token_cost": null, "output_token_cost": null, "currency": null, "supports_cache_control": null },
+    { "name": "deepseek-ai/deepseek-v4-flash", "context_limit": 128000, "input_token_cost": null, "output_token_cost": null, "currency": null, "supports_cache_control": null },
+    { "name": "openai/gpt-oss-120b", "context_limit": 128000, "input_token_cost": null, "output_token_cost": null, "currency": null, "supports_cache_control": null },
+    { "name": "z-ai/glm-5.1", "context_limit": 128000, "input_token_cost": null, "output_token_cost": null, "currency": null, "supports_cache_control": null },
+    { "name": "nvidia/nvidia-nemotron-nano-9b-v2", "context_limit": 128000, "input_token_cost": null, "output_token_cost": null, "currency": null, "supports_cache_control": null },
+    { "name": "meta/llama-3.2-11b-vision-instruct", "context_limit": 128000, "input_token_cost": null, "output_token_cost": null, "currency": null, "supports_cache_control": null }
+  ],
+  "headers": null,
+  "timeout_seconds": null,
+  "supports_streaming": true
+}

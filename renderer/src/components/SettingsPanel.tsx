@@ -20,6 +20,8 @@ import {
 } from 'lucide-react'
 import { ModelsTab } from './settings/ModelsTab'
 import { McpTab } from './settings/McpTab'
+import { AppearanceFontSelector, applyFontVars } from './settings/AppearanceFontSelector'
+import { showToast } from './Toast'
 
 type SettingsTab = 'general' | 'agents' | 'models' | 'mcp' | 'appearance' | 'shortcuts' | 'advanced' | 'about'
 
@@ -235,18 +237,33 @@ export function SettingsPanel({ onSettingsSaved }: SettingsPanelProps = {}) {
   const save = async () => {
     if (!settings || !dirty) return
     setSaving(true)
-    await window.api.saveSettings(settings)
+    try {
+      await window.api.saveSettings(settings)
 
-    // Apply font size to document
-    document.documentElement.style.setProperty(
-      '--chat-font-size',
-      `${settings.appearance.chatFontSize}px`
-    )
+      // Apply font size to document
+      document.documentElement.style.setProperty(
+        '--chat-font-size',
+        `${settings.appearance.chatFontSize}px`
+      )
 
-    setSaving(false)
-    setDirty(false)
-    setInitialUseLegacyClaudeCli(settings.providers?.useLegacyClaudeCli !== false)
-    onSettingsSaved?.(settings)
+      applyFontVars(document.documentElement, settings.appearance)
+
+      setDirty(false)
+      setInitialUseLegacyClaudeCli(settings.providers?.useLegacyClaudeCli !== false)
+      onSettingsSaved?.(settings)
+    } catch (err: any) {
+      console.error('[Settings] save failed:', err)
+      showToast({
+        type: 'error',
+        title: t('settings.saveFailedTitle'),
+        message:
+          typeof err === 'string'
+            ? err
+            : err?.message ?? t('settings.saveFailedMessage'),
+      })
+    } finally {
+      setSaving(false)
+    }
   }
 
   const currentUseLegacyClaudeCli = settings?.providers?.useLegacyClaudeCli !== false
@@ -490,6 +507,26 @@ export function SettingsPanel({ onSettingsSaved }: SettingsPanelProps = {}) {
                 </span>
               </div>
             </div>
+
+            <h4 className="settings-section-title" style={{ marginTop: 20, fontSize: 14 }}>
+              {t('settings.appearance.fontsTitle')}
+            </h4>
+
+            <AppearanceFontSelector
+              kind="ui"
+              value={settings.appearance.uiFont}
+              onChange={(next) => update('appearance', { uiFont: next })}
+            />
+            <AppearanceFontSelector
+              kind="chat"
+              value={settings.appearance.chatFont}
+              onChange={(next) => update('appearance', { chatFont: next })}
+            />
+            <AppearanceFontSelector
+              kind="code"
+              value={settings.appearance.codeFont}
+              onChange={(next) => update('appearance', { codeFont: next })}
+            />
           </div>
         )}
 

@@ -167,9 +167,19 @@ pub struct AppearanceSettings {
     pub chat_font_size: u32,
     #[serde(default = "default_theme")]
     pub theme: String,
+    #[serde(rename = "uiFont", default = "default_font_choice")]
+    pub ui_font: String,
+    #[serde(rename = "chatFont", default = "default_font_choice")]
+    pub chat_font: String,
+    #[serde(rename = "codeFont", default = "default_font_choice")]
+    pub code_font: String,
 }
 
 fn default_theme() -> String {
+    "system".to_string()
+}
+
+fn default_font_choice() -> String {
     "system".to_string()
 }
 
@@ -318,6 +328,9 @@ impl Default for AppSettings {
             appearance: AppearanceSettings {
                 chat_font_size: 14,
                 theme: default_theme(),
+                ui_font: default_font_choice(),
+                chat_font: default_font_choice(),
+                code_font: default_font_choice(),
             },
             shortcuts: ShortcutSettings {
                 text_expansions: vec![],
@@ -555,6 +568,34 @@ mod migration_tests {
         assert_eq!(s.providers.default_model, "claude-sonnet-4-6");
         assert_eq!(s.providers.planner_model, "claude-haiku-4-5-20251001");
         assert!(s.providers.configured_providers.is_empty());
+        // Font defaults must be the sentinel "system" — the JS-side stackFor()
+        // depends on this exact value to revert to the :root cascade. Drift
+        // here would silently break font application on upgrade.
+        assert_eq!(s.appearance.ui_font, "system");
+        assert_eq!(s.appearance.chat_font, "system");
+        assert_eq!(s.appearance.code_font, "system");
+    }
+
+    #[test]
+    fn appearance_settings_roundtrips_with_camelcase_font_keys() {
+        // The JS layer reads `uiFont`/`chatFont`/`codeFont`; a serde rename
+        // typo would silently swap which CSS variable receives which value.
+        let original = AppearanceSettings {
+            chat_font_size: 14,
+            theme: "dark".into(),
+            ui_font: "outfit".into(),
+            chat_font: "georgia".into(),
+            code_font: "jetbrains".into(),
+        };
+        let s = serde_json::to_string(&original).unwrap();
+        assert!(s.contains("\"uiFont\":\"outfit\""), "missing uiFont in {s}");
+        assert!(s.contains("\"chatFont\":\"georgia\""), "missing chatFont in {s}");
+        assert!(s.contains("\"codeFont\":\"jetbrains\""), "missing codeFont in {s}");
+
+        let back: AppearanceSettings = serde_json::from_str(&s).unwrap();
+        assert_eq!(back.ui_font, "outfit");
+        assert_eq!(back.chat_font, "georgia");
+        assert_eq!(back.code_font, "jetbrains");
     }
 
     #[test]

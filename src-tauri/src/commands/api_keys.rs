@@ -318,6 +318,35 @@ pub async fn test_provider_connection(
             };
             (format!("{host}/api/tags"), vec![])
         }
+        "openrouter" => (
+            "https://openrouter.ai/api/v1/models".into(),
+            vec![("authorization", format!("Bearer {key}"))],
+        ),
+        "groq" => (
+            "https://api.groq.com/openai/v1/models".into(),
+            vec![("authorization", format!("Bearer {key}"))],
+        ),
+        "cerebras" => (
+            "https://api.cerebras.ai/v1/models".into(),
+            vec![("authorization", format!("Bearer {key}"))],
+        ),
+        "deepseek" => (
+            "https://api.deepseek.com/v1/models".into(),
+            vec![("authorization", format!("Bearer {key}"))],
+        ),
+        "nvidia_nim" => (
+            "https://integrate.api.nvidia.com/v1/models".into(),
+            vec![("authorization", format!("Bearer {key}"))],
+        ),
+        "lmstudio" => {
+            // Same shape as ollama — "key" here is the host URL slot.
+            let host = if key.is_empty() {
+                "http://localhost:1234".into()
+            } else {
+                key.trim_end_matches('/').to_string()
+            };
+            (format!("{host}/v1/models"), vec![])
+        }
         _ => {
             return Ok(TestConnectionResult {
                 ok: false,

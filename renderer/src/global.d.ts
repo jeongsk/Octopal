@@ -119,6 +119,9 @@ interface AppSettings {
   appearance: {
     chatFontSize: number
     theme: 'dark' | 'light' | 'system'
+    uiFont: string
+    chatFont: string
+    codeFont: string
   }
   shortcuts: {
     textExpansions: TextShortcut[]

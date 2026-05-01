@@ -254,6 +254,11 @@
   --font-base: 14px;
   --font-lg: 18px;
 
+  /* Font families */
+  --font-ui: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif, 'Tossface';
+  --font-chat: var(--font-ui);
+  --font-mono: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+
   /* Transition */
   --transition: 0.15s ease;
 }
@@ -333,7 +338,7 @@ html,
 body,
 #root {
   height: 100%;
-  font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif, 'Tossface';
+  font-family: var(--font-ui);
   font-size: var(--font-base);
   color: var(--text-primary);
   background: var(--bg-base);
@@ -348,20 +353,23 @@ button,
 input,
 textarea,
 select {
-  font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif, 'Tossface';
+  font-family: var(--font-ui);
 }
 
 /* Korean locale: use Pretendard as primary font */
+html[lang='ko'] {
+  --font-ui: 'Pretendard Variable', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif, 'Tossface';
+}
 html[lang='ko'],
 html[lang='ko'] body,
 html[lang='ko'] #root {
-  font-family: 'Pretendard Variable', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif, 'Tossface';
+  font-family: var(--font-ui);
 }
 html[lang='ko'] button,
 html[lang='ko'] input,
 html[lang='ko'] textarea,
 html[lang='ko'] select {
-  font-family: 'Pretendard Variable', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif, 'Tossface';
+  font-family: var(--font-ui);
 }
 
 button {
@@ -2815,6 +2823,7 @@ button {
   line-height: 1.5;
   word-wrap: break-word;
   white-space: pre-wrap;
+  font-family: var(--font-chat);
 }
 
 /* User messages stay plain text */
@@ -2932,7 +2941,7 @@ button {
   background: rgba(255, 255, 255, 0.08);
   padding: 2px 6px;
   border-radius: 4px;
-  font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+  font-family: var(--font-mono);
   font-size: 0.9em;
   color: #e5a0ff;
   white-space: pre-wrap;
@@ -2947,7 +2956,7 @@ button {
   padding: 12px 14px;
   margin: 0.5em 0;
   overflow-x: auto;
-  font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+  font-family: var(--font-mono);
   font-size: 0.85em;
   line-height: 1.5;
 }
@@ -4720,6 +4729,16 @@ button {
 
 .settings-slider-row input[type="range"]::-webkit-slider-thumb:hover {
   box-shadow: 0 0 0 4px var(--accent-glow), 0 1px 4px rgba(0,0,0,0.3);
+}
+
+.font-preview {
+  margin-top: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  font-size: var(--font-base);
 }
 
 /* Shortcuts */

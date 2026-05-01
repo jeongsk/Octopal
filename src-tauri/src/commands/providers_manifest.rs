@@ -181,7 +181,7 @@ mod tests {
     fn load_without_overlay_returns_bundled() {
         let tmp = tempdir();
         let m = load(tmp.path()).unwrap();
-        assert_eq!(m.len(), 4);
+        assert_eq!(m.len(), 10);
     }
 
     #[test]
@@ -198,7 +198,7 @@ mod tests {
         }"#;
         fs::write(tmp.path().join("providers.json"), overlay).unwrap();
         let m = load(tmp.path()).unwrap();
-        assert_eq!(m.len(), 5);
+        assert_eq!(m.len(), 11);
         assert!(m.contains_key("custom"));
         assert!(m.contains_key("anthropic"), "bundle still present");
     }
@@ -229,7 +229,7 @@ mod tests {
         fs::write(tmp.path().join("providers.json"), "{ not json").unwrap();
         let m = load(tmp.path()).unwrap();
         // Bundle intact; corrupted overlay logged and skipped.
-        assert_eq!(m.len(), 4);
+        assert_eq!(m.len(), 10);
         assert!(m.contains_key("anthropic"));
     }
 

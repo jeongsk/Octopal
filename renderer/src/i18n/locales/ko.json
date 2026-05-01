@@ -55,7 +55,17 @@
       "themeSystem": "시스템",
       "themeLight": "라이트",
       "themeDark": "다크",
-      "chatFontSize": "채팅 글꼴 크기"
+      "chatFontSize": "채팅 글꼴 크기",
+      "fontsTitle": "글꼴",
+      "interfaceFont": "인터페이스 글꼴",
+      "interfaceFontDesc": "사이드바, 버튼, 메뉴 등 UI 전반에 사용됩니다.",
+      "chatFont": "채팅 글꼴",
+      "chatFontDesc": "메시지 본문과 마크다운 본문에 사용됩니다.",
+      "codeFont": "코드 글꼴",
+      "codeFontDesc": "인라인 코드와 코드 블록에 사용됩니다.",
+      "fontPreview": "다람쥐 헌 쳇바퀴에 타고파.",
+      "fontPreviewCode": "const greet = (name) => `Hello, ${name}!`",
+      "fontSystemDefault": "시스템 기본값"
     },
     "shortcuts": {
       "title": "단축어",
@@ -166,7 +176,9 @@
       "restartToUpdate": "재시작하여 업데이트",
       "copyright": "Made with ❤️ by Gilhyun"
     },
-    "unsavedChanges": "저장하지 않은 변경사항"
+    "unsavedChanges": "저장하지 않은 변경사항",
+    "saveFailedTitle": "설정을 저장할 수 없습니다",
+    "saveFailedMessage": "설정을 디스크에 기록하지 못했습니다. 다시 시도해 주세요."
   },
   "chat": {
     "placeholder": "메시지를 입력하세요… (@이름으로 특정 에이전트에게, @all로 전체에게)",

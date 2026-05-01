@@ -12,11 +12,24 @@
       { "id": "api_key", "label": "API Key", "goose_provider": "anthropic" }
     ]
   },
-  "openai": {
-    "displayName": "OpenAI",
-    "models": ["gpt-5", "gpt-5-mini", "o3"],
+  "cerebras": {
+    "displayName": "Cerebras",
+    "models": [
+      "llama-3.3-70b",
+      "llama3.1-8b",
+      "llama-4-scout-17b-16e-instruct",
+      "qwen-3-32b",
+      "qwen-3-235b-a22b-instruct-2507"
+    ],
     "authMethods": [
-      { "id": "api_key", "label": "API Key", "goose_provider": "openai" }
+      { "id": "api_key", "label": "API Key", "goose_provider": "cerebras" }
+    ]
+  },
+  "deepseek": {
+    "displayName": "DeepSeek",
+    "models": ["deepseek-chat", "deepseek-reasoner"],
+    "authMethods": [
+      { "id": "api_key", "label": "API Key", "goose_provider": "deepseek" }
     ]
   },
   "google": {
@@ -26,11 +39,69 @@
       { "id": "api_key", "label": "API Key", "goose_provider": "google" }
     ]
   },
+  "groq": {
+    "displayName": "Groq",
+    "models": [
+      "moonshotai/kimi-k2-instruct-0905",
+      "openai/gpt-oss-120b",
+      "openai/gpt-oss-20b",
+      "meta-llama/llama-4-maverick-17b-128e-instruct",
+      "meta-llama/llama-4-scout-17b-16e-instruct",
+      "llama-3.3-70b-versatile"
+    ],
+    "authMethods": [
+      { "id": "api_key", "label": "API Key", "goose_provider": "groq" }
+    ]
+  },
+  "lmstudio": {
+    "displayName": "LM Studio (Local)",
+    "models": [],
+    "authMethods": [
+      { "id": "host_only", "label": "Local host", "goose_provider": "lmstudio" }
+    ]
+  },
+  "nvidia_nim": {
+    "displayName": "Nvidia NIM",
+    "models": [
+      "deepseek-ai/deepseek-v4-pro",
+      "deepseek-ai/deepseek-v4-flash",
+      "openai/gpt-oss-120b",
+      "z-ai/glm-5.1",
+      "nvidia/nvidia-nemotron-nano-9b-v2",
+      "meta/llama-3.2-11b-vision-instruct"
+    ],
+    "authMethods": [
+      { "id": "api_key", "label": "API Key", "goose_provider": "custom_nvidia" }
+    ]
+  },
   "ollama": {
     "displayName": "Ollama (Local)",
     "models": "dynamic",
     "authMethods": [
       { "id": "host_only", "label": "Local host", "goose_provider": "ollama" }
+    ]
+  },
+  "openai": {
+    "displayName": "OpenAI",
+    "models": ["gpt-5", "gpt-5-mini", "o3"],
+    "authMethods": [
+      { "id": "api_key", "label": "API Key", "goose_provider": "openai" }
+    ]
+  },
+  "openrouter": {
+    "displayName": "OpenRouter",
+    "models": [
+      "anthropic/claude-sonnet-4.5",
+      "anthropic/claude-opus-4.1",
+      "openai/gpt-5",
+      "google/gemini-2.5-pro",
+      "deepseek/deepseek-r1-0528",
+      "qwen/qwen3-coder",
+      "meta-llama/llama-4-maverick-17b-128e-instruct",
+      "moonshotai/kimi-k2"
+    ],
+    "authMethods": [
+      { "id": "api_key", "label": "API Key", "goose_provider": "openrouter" }
     ]
   }
 }

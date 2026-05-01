@@ -1,0 +1,15 @@
+{
+  "name": "deepseek",
+  "engine": "openai",
+  "display_name": "DeepSeek",
+  "description": "DeepSeek API (chat + reasoner)",
+  "api_key_env": "DEEPSEEK_API_KEY",
+  "base_url": "https://api.deepseek.com/v1/chat/completions",
+  "models": [
+    { "name": "deepseek-chat", "context_limit": 128000, "input_token_cost": null, "output_token_cost": null, "currency": null, "supports_cache_control": null },
+    { "name": "deepseek-reasoner", "context_limit": 128000, "input_token_cost": null, "output_token_cost": null, "currency": null, "supports_cache_control": null }
+  ],
+  "headers": null,
+  "timeout_seconds": null,
+  "supports_streaming": true
+}

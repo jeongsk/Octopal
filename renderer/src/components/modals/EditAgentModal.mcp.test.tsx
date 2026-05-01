@@ -9,7 +9,7 @@ let lastUpdateOctoArg: UpdateOctoArg | null = null
 let loadSettingsImpl: () => Promise<AppSettings> = async () => ({
   general: { restoreLastWorkspace: false, launchAtLogin: false, language: 'en' },
   agents: { defaultPermissions: { fileWrite: false, bash: false, network: false } },
-  appearance: { chatFontSize: 14, theme: 'dark' },
+  appearance: { chatFontSize: 14, theme: 'dark', uiFont: 'system', chatFont: 'system', codeFont: 'system' },
   shortcuts: { textExpansions: [] },
   advanced: { defaultAgentModel: 'sonnet', autoModelSelection: false },
   mcp: { servers: {} },
@@ -45,7 +45,7 @@ describe('EditAgentModal — MCP overlay save', () => {
     loadSettingsImpl = async () => ({
       general: { restoreLastWorkspace: false, launchAtLogin: false, language: 'en' },
       agents: { defaultPermissions: { fileWrite: false, bash: false, network: false } },
-      appearance: { chatFontSize: 14, theme: 'dark' },
+      appearance: { chatFontSize: 14, theme: 'dark', uiFont: 'system', chatFont: 'system', codeFont: 'system' },
       shortcuts: { textExpansions: [] },
       advanced: { defaultAgentModel: 'sonnet', autoModelSelection: false },
       mcp: { servers: {} },
@@ -83,7 +83,7 @@ describe('EditAgentModal — MCP overlay save', () => {
     loadSettingsImpl = async () => ({
       general: { restoreLastWorkspace: false, launchAtLogin: false, language: 'en' },
       agents: { defaultPermissions: { fileWrite: false, bash: false, network: false } },
-      appearance: { chatFontSize: 14, theme: 'dark' },
+      appearance: { chatFontSize: 14, theme: 'dark', uiFont: 'system', chatFont: 'system', codeFont: 'system' },
       shortcuts: { textExpansions: [] },
       advanced: { defaultAgentModel: 'sonnet', autoModelSelection: false },
       mcp: { servers: {} },
@@ -119,7 +119,7 @@ describe('EditAgentModal — MCP overlay save', () => {
     loadSettingsImpl = async () => ({
       general: { restoreLastWorkspace: false, launchAtLogin: false, language: 'en' },
       agents: { defaultPermissions: { fileWrite: false, bash: false, network: false } },
-      appearance: { chatFontSize: 14, theme: 'dark' },
+      appearance: { chatFontSize: 14, theme: 'dark', uiFont: 'system', chatFont: 'system', codeFont: 'system' },
       shortcuts: { textExpansions: [] },
       advanced: { defaultAgentModel: 'sonnet', autoModelSelection: false },
       mcp: {

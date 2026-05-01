@@ -142,8 +142,17 @@ fn provider_api_key_env(goose_provider: &str) -> Option<&'static str> {
         "openai" => Some("OPENAI_API_KEY"),
         "google" => Some("GOOGLE_API_KEY"),
         "databricks" => Some("DATABRICKS_TOKEN"),
-        // CLI-subscription providers + Ollama: no API key env
-        "claude-code" | "gemini-cli" | "gemini-oauth" | "chatgpt-codex" | "ollama" => None,
+        // New providers (custom + native via Goose v1.31.0).
+        "openrouter" => Some("OPENROUTER_API_KEY"), // native Goose module
+        "groq" => Some("GROQ_API_KEY"),             // custom_providers/groq.json
+        "cerebras" => Some("CEREBRAS_API_KEY"),     // custom_providers/cerebras.json
+        "deepseek" => Some("DEEPSEEK_API_KEY"),     // custom_providers/deepseek.json
+        "custom_nvidia" => Some("CUSTOM_NVIDIA_API_KEY"), // custom_providers/custom_nvidia.json
+        // CLI-subscription providers + Ollama + LM Studio: no API key env.
+        // (LM Studio is local; its custom_providers JSON has api_key_env: ""
+        // and requires_auth: false.)
+        "claude-code" | "gemini-cli" | "gemini-oauth" | "chatgpt-codex" | "ollama"
+        | "lmstudio" => None,
         // Unknown provider: don't guess. Caller falls back to no key injection
         // and the agent will surface the provider's own "missing credentials"
         // error in the stream.
@@ -179,6 +188,64 @@ impl GooseXdgRoots {
         }
         Ok(())
     }
+}
+
+/// Bundled Goose custom-provider templates. Goose v1.31.0 reads these JSON
+/// files from `<XDG_CONFIG_HOME>/goose/custom_providers/` at `goose acp`
+/// startup, registering each as a runtime-selectable provider. Without these
+/// on disk, `GOOSE_PROVIDER=groq` (etc.) would fail with
+/// "Failed to load custom providers: Unknown provider".
+///
+/// OpenRouter is intentionally absent — it's a native Goose module, not a
+/// custom provider. Same for anthropic/openai/google/ollama.
+const BUNDLED_CUSTOM_PROVIDERS: &[(&str, &str)] = &[
+    (
+        "groq.json",
+        include_str!("../../resources/goose_custom_providers/groq.json"),
+    ),
+    (
+        "cerebras.json",
+        include_str!("../../resources/goose_custom_providers/cerebras.json"),
+    ),
+    (
+        "deepseek.json",
+        include_str!("../../resources/goose_custom_providers/deepseek.json"),
+    ),
+    (
+        "lmstudio.json",
+        include_str!("../../resources/goose_custom_providers/lmstudio.json"),
+    ),
+    (
+        "custom_nvidia.json",
+        include_str!("../../resources/goose_custom_providers/custom_nvidia.json"),
+    ),
+];
+
+/// Sync Octopal's bundled custom-provider templates into Goose's XDG config
+/// dir. Called from `spawn_initialized()` immediately after `xdg.ensure()`.
+///
+/// Idempotent on unchanged content: writes only when the on-disk bytes differ
+/// from the bundled bytes. **Files in `BUNDLED_CUSTOM_PROVIDERS` are
+/// overwritten on every diff — user edits to these managed templates are NOT
+/// preserved.** Customize via env vars or a sidecar overlay (a separate
+/// `custom_providers/<user_*.json>` filename), not by editing managed
+/// templates. Files outside the bundled list are never touched
+/// (auto-deletion of stale templates is intentionally out of scope).
+fn sync_custom_providers(xdg: &GooseXdgRoots) -> Result<(), String> {
+    let dir = xdg.config.join("goose").join("custom_providers");
+    std::fs::create_dir_all(&dir).map_err(|e| format!("mkdir custom_providers: {e}"))?;
+    for (filename, content) in BUNDLED_CUSTOM_PROVIDERS {
+        let path = dir.join(filename);
+        let needs_write = match std::fs::read(&path) {
+            Ok(existing) => existing.as_slice() != content.as_bytes(),
+            Err(_) => true,
+        };
+        if needs_write {
+            std::fs::write(&path, content)
+                .map_err(|e| format!("write {}: {e}", path.display()))?;
+        }
+    }
+    Ok(())
 }
 
 /// Per-spawn config. Owned by `spawn_agent`; does not persist.
@@ -739,6 +806,7 @@ pub async fn spawn_initialized(
     cfg: &GooseSpawnConfig,
 ) -> Result<AcpClient, String> {
     cfg.xdg.ensure()?;
+    sync_custom_providers(&cfg.xdg)?;
     let env = build_goose_env(cfg);
     let mut client = AcpClient::spawn(app, env).await?;
     client.initialize().await?;
@@ -1721,5 +1789,196 @@ mod tests {
             deny_paths: None,
         };
         assert_eq!(permissions_to_mode_id(Some(&perms)), "auto");
+    }
+
+    #[test]
+    fn env_builder_openrouter_uses_openrouter_api_key() {
+        let tmp = std::env::temp_dir().join("octopal-env-openrouter");
+        let cfg = GooseSpawnConfig {
+            provider: "openrouter".into(),
+            model: "anthropic/claude-sonnet-4.5".into(),
+            api_key: Some("sk-or-test".into()),
+            ollama_host: None,
+            xdg: xdg(&tmp),
+            permissions: None,
+            cwd: tmp.clone(),
+        };
+        let env = build_goose_env(&cfg);
+        assert_eq!(env.get("GOOSE_PROVIDER").map(|s| s.as_str()), Some("openrouter"));
+        assert_eq!(
+            env.get("OPENROUTER_API_KEY").map(|s| s.as_str()),
+            Some("sk-or-test")
+        );
+        assert!(env.get("OPENAI_API_KEY").is_none());
+        assert!(env.get("ANTHROPIC_API_KEY").is_none());
+    }
+
+    #[test]
+    fn env_builder_groq_uses_groq_api_key() {
+        let tmp = std::env::temp_dir().join("octopal-env-groq");
+        let cfg = GooseSpawnConfig {
+            provider: "groq".into(),
+            model: "moonshotai/kimi-k2-instruct-0905".into(),
+            api_key: Some("gsk_test".into()),
+            ollama_host: None,
+            xdg: xdg(&tmp),
+            permissions: None,
+            cwd: tmp.clone(),
+        };
+        let env = build_goose_env(&cfg);
+        assert_eq!(env.get("GOOSE_PROVIDER").map(|s| s.as_str()), Some("groq"));
+        assert_eq!(env.get("GROQ_API_KEY").map(|s| s.as_str()), Some("gsk_test"));
+    }
+
+    #[test]
+    fn env_builder_cerebras_uses_cerebras_api_key() {
+        let tmp = std::env::temp_dir().join("octopal-env-cerebras");
+        let cfg = GooseSpawnConfig {
+            provider: "cerebras".into(),
+            model: "llama-3.3-70b".into(),
+            api_key: Some("csk-test".into()),
+            ollama_host: None,
+            xdg: xdg(&tmp),
+            permissions: None,
+            cwd: tmp.clone(),
+        };
+        let env = build_goose_env(&cfg);
+        assert_eq!(env.get("GOOSE_PROVIDER").map(|s| s.as_str()), Some("cerebras"));
+        assert_eq!(
+            env.get("CEREBRAS_API_KEY").map(|s| s.as_str()),
+            Some("csk-test")
+        );
+    }
+
+    #[test]
+    fn env_builder_deepseek_uses_deepseek_api_key() {
+        let tmp = std::env::temp_dir().join("octopal-env-deepseek");
+        let cfg = GooseSpawnConfig {
+            provider: "deepseek".into(),
+            model: "deepseek-chat".into(),
+            api_key: Some("sk-deepseek-test".into()),
+            ollama_host: None,
+            xdg: xdg(&tmp),
+            permissions: None,
+            cwd: tmp.clone(),
+        };
+        let env = build_goose_env(&cfg);
+        assert_eq!(env.get("GOOSE_PROVIDER").map(|s| s.as_str()), Some("deepseek"));
+        assert_eq!(
+            env.get("DEEPSEEK_API_KEY").map(|s| s.as_str()),
+            Some("sk-deepseek-test")
+        );
+    }
+
+    #[test]
+    fn env_builder_nvidia_uses_custom_nvidia_api_key() {
+        // Provider name is "custom_nvidia" (the goose_provider value),
+        // NOT "nvidia_nim" (the manifest id).
+        let tmp = std::env::temp_dir().join("octopal-env-nvidia");
+        let cfg = GooseSpawnConfig {
+            provider: "custom_nvidia".into(),
+            model: "deepseek-ai/deepseek-v4-pro".into(),
+            api_key: Some("nvapi-test".into()),
+            ollama_host: None,
+            xdg: xdg(&tmp),
+            permissions: None,
+            cwd: tmp.clone(),
+        };
+        let env = build_goose_env(&cfg);
+        assert_eq!(
+            env.get("GOOSE_PROVIDER").map(|s| s.as_str()),
+            Some("custom_nvidia")
+        );
+        assert_eq!(
+            env.get("CUSTOM_NVIDIA_API_KEY").map(|s| s.as_str()),
+            Some("nvapi-test")
+        );
+    }
+
+    #[test]
+    fn env_builder_lmstudio_omits_api_key() {
+        let tmp = std::env::temp_dir().join("octopal-env-lmstudio");
+        let cfg = GooseSpawnConfig {
+            provider: "lmstudio".into(),
+            model: "qwen/qwen3-coder-30b".into(),
+            // Even if a key is supplied, LM Studio gets no API-key env
+            // injection (its custom_providers JSON has requires_auth: false).
+            api_key: Some("ignored".into()),
+            ollama_host: None,
+            xdg: xdg(&tmp),
+            permissions: None,
+            cwd: tmp.clone(),
+        };
+        let env = build_goose_env(&cfg);
+        assert_eq!(env.get("GOOSE_PROVIDER").map(|s| s.as_str()), Some("lmstudio"));
+        for k in [
+            "OPENAI_API_KEY",
+            "GROQ_API_KEY",
+            "CEREBRAS_API_KEY",
+            "DEEPSEEK_API_KEY",
+            "CUSTOM_NVIDIA_API_KEY",
+            "OPENROUTER_API_KEY",
+            "ANTHROPIC_API_KEY",
+        ] {
+            assert!(env.get(k).is_none(), "unexpected key for lmstudio: {k}");
+        }
+    }
+
+    #[test]
+    fn sync_custom_providers_writes_all_templates() {
+        let tmp = std::env::temp_dir()
+            .join(format!("octopal-sync-cp-{}", uuid::Uuid::new_v4().simple()));
+        let xdg = GooseXdgRoots::under(&tmp);
+        xdg.ensure().unwrap();
+        sync_custom_providers(&xdg).unwrap();
+
+        let dir = xdg.config.join("goose").join("custom_providers");
+        for filename in [
+            "groq.json",
+            "cerebras.json",
+            "deepseek.json",
+            "lmstudio.json",
+            "custom_nvidia.json",
+        ] {
+            let path = dir.join(filename);
+            assert!(path.exists(), "missing {filename}");
+            let content = std::fs::read_to_string(&path).unwrap();
+            let parsed: serde_json::Value =
+                serde_json::from_str(&content).unwrap_or_else(|e| panic!("{filename}: {e}"));
+            assert!(
+                parsed.get("name").and_then(|v| v.as_str()).is_some(),
+                "{filename} missing name"
+            );
+            assert_eq!(
+                parsed.get("engine").and_then(|v| v.as_str()),
+                Some("openai"),
+                "{filename} wrong engine"
+            );
+        }
+
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn sync_custom_providers_is_idempotent_for_unchanged_content() {
+        let tmp = std::env::temp_dir()
+            .join(format!("octopal-sync-cp-idem-{}", uuid::Uuid::new_v4().simple()));
+        let xdg = GooseXdgRoots::under(&tmp);
+        xdg.ensure().unwrap();
+        sync_custom_providers(&xdg).unwrap();
+
+        let lmstudio_path = xdg
+            .config
+            .join("goose")
+            .join("custom_providers")
+            .join("lmstudio.json");
+        let mtime1 = std::fs::metadata(&lmstudio_path).unwrap().modified().unwrap();
+
+        std::thread::sleep(std::time::Duration::from_millis(20));
+        sync_custom_providers(&xdg).unwrap();
+        let mtime2 = std::fs::metadata(&lmstudio_path).unwrap().modified().unwrap();
+        assert_eq!(mtime1, mtime2, "idempotent call rewrote unchanged file");
+
+        let _ = std::fs::remove_dir_all(&tmp);
     }
 }
