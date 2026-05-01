@@ -115,7 +115,6 @@
       "runtimeApplyHint": "런타임 변경은 저장 후 다음 메시지부터 적용됩니다.",
       "defaultModelTitle": "기본 모델",
       "adaptiveOn": "적응형 모델 선택",
-      "adaptiveOff": "적응형 선택이 꺼져 있습니다 — 아래에서 고정 모델을 선택하세요.",
       "keysClaudeCliBanner": "Claude CLI 런타임은 `claude` 자체 인증을 사용합니다. 이 키들은 Goose 런타임에서만 소비되며, 미리 저장해 두는 것은 가능합니다."
     },
     "providers": {

@@ -31,7 +31,7 @@ sudo apt install kwalletmanager kde-cli-tools
 sudo pacman -S gnome-keyring   # or kwallet-pam for KDE
 ```
 
-Restart Octopal after install. Settings → Providers should show the
+Restart Octopal after install. Settings → Models should show the
 normal per-provider cards. First save triggers the usual "unlock
 keyring" prompt; subsequent saves are silent.
 
@@ -63,7 +63,7 @@ Launch Octopal from that shell.
 
 ### What changes in the UI
 
-- Providers tab shows a persistent yellow banner:
+- Models tab shows a persistent yellow banner:
   > Running in environment-variable fallback mode. Keys are read from
   > `OCTOPAL_KEY_<PROVIDER>` env vars, bypassing OS keyring.
 - The per-provider **Save** and **Remove** buttons return an error
@@ -124,7 +124,7 @@ via `OCTOPAL_KEY_<PROVIDER>`.
 
 ## Verifying your setup
 
-Run Octopal once, open **Settings → Providers**, check the status
+Run Octopal once, open **Settings → Models**, check the status
 banner at the top:
 
 - "OS keyring" → keyring backend is live; normal operation.

@@ -196,7 +196,6 @@ export function ModelsTab({
       <div
         className="provider-card-grid"
         style={isClaudeCli ? { opacity: 0.5 } : undefined}
-        aria-disabled={isClaudeCli || undefined}
       >
         {Object.entries(manifest).map(([pid, entry]) => {
           const primaryAuth = entry.authMethods[0]

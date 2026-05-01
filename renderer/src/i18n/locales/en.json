@@ -115,7 +115,6 @@
       "runtimeApplyHint": "Runtime change applies after Save, starting from the next message.",
       "defaultModelTitle": "Default model",
       "adaptiveOn": "Adaptive model selection",
-      "adaptiveOff": "Adaptive model selection is off — pick a fixed tier below.",
       "keysClaudeCliBanner": "Claude CLI runtime uses `claude`'s own auth. These keys are only consumed by the Goose runtime — you can still save them in advance."
     },
     "providers": {

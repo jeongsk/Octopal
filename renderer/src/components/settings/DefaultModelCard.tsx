@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Zap } from 'lucide-react'
 
@@ -45,9 +46,15 @@ export function DefaultModelCard({
   const { t } = useTranslation()
   const isClaudeCli = useLegacyClaudeCli !== false
 
+  // Hook must run unconditionally (Rules of Hooks); value only consumed on the Goose branch.
+  const defaultModelOptions = useMemo(
+    () => availableModelsFor(providers.defaultProvider ?? 'anthropic'),
+    [availableModelsFor, providers.defaultProvider],
+  )
+
   if (isClaudeCli) {
     const adaptive = advanced?.autoModelSelection === true
-    const tier = advanced?.defaultAgentModel || 'opus'
+    const tier = advanced?.defaultAgentModel ?? 'opus'
     return (
       <div>
         <h4 className="settings-section-title" style={{ marginTop: 20, fontSize: 14 }}>
@@ -105,7 +112,6 @@ export function DefaultModelCard({
   }
 
   // Goose mode — provider + model select pair
-  const defaultModelOptions = availableModelsFor(providers.defaultProvider ?? 'anthropic')
   return (
     <div>
       <h4 className="settings-section-title" style={{ marginTop: 20, fontSize: 14 }}>
